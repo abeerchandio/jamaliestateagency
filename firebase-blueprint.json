@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "Property": {
+      "title": "Property",
+      "description": "Real estate listing document in Nawabshah",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "propertyType": { "type": "string", "enum": ["House", "Plot", "Apartment", "Commercial", "Agricultural Land", "Shop", "Office"] },
+        "purpose": { "type": "string", "enum": ["Sale", "Rent"] },
+        "location": { "type": "string", "maxLength": 200 },
+        "price": { "type": "string", "maxLength": 100 },
+        "area": { "type": "string", "maxLength": 100 },
+        "bedrooms": { "type": "string", "maxLength": 50 },
+        "bathrooms": { "type": "string", "maxLength": 50 },
+        "parking": { "type": "string", "maxLength": 50 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "features": { "type": "array" },
+        "images": { "type": "array" },
+        "status": { "type": "string", "enum": ["Available", "Sold", "Rented", "Pending"] },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "propertyType", "purpose", "location", "price", "area", "status"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Customer inquiry regarding a property or general inquiry",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 100 },
+        "propertyId": { "type": "string", "maxLength": 100 },
+        "propertyTitle": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["New", "Contacted", "Closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "message", "status"]
+    },
+    "PropertyRequest": {
+      "title": "PropertyRequest",
+      "description": "Customer submission for finding or listing property",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 100 },
+        "purpose": { "type": "string", "maxLength": 50 },
+        "propertyType": { "type": "string", "maxLength": 50 },
+        "preferredLocation": { "type": "string", "maxLength": 100 },
+        "budget": { "type": "string", "maxLength": 100 },
+        "bedrooms": { "type": "string", "maxLength": 50 },
+        "requirements": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["New", "Contacted", "Closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "status"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Authorized administrator user profile",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin", "superadmin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Publicly accessible property catalog managed by authorized administrators"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Customer inquiries submitted via the website, private to admins"
+    },
+    "/propertyRequests/{requestId}": {
+      "schema": "PropertyRequest",
+      "description": "Custom property search requests submitted by clients, private to admins"
+    },
+    "/admins/{adminUid}": {
+      "schema": "Admin",
+      "description": "Authorized administrator registry document"
+    }
+  }
+}

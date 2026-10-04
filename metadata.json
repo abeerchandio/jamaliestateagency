@@ -1,0 +1,8 @@
+{
+  "name": "Nawabshah Estate Agency",
+  "description": "Premier real estate and property consultancy in Nawabshah (Shaheed Benazirabad). Buying, selling, and renting of residential plots, luxury villas, commercial plazas, and agricultural farmland.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
