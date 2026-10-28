@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import appletConfig from '../../firebase-applet-config.json';
 
 // ============================================================================
 // STRING SANITIZATION HELPER
@@ -43,53 +44,65 @@ export interface FirebaseConfigObject {
   storageBucket: string;
   messagingSenderId: string;
   appId: string;
+  measurementId?: string;
+  firestoreDatabaseId?: string;
 }
+
+// User's verified credentials from Firebase Console
+export const VERIFIED_FIREBASE_CONFIG: FirebaseConfigObject = {
+  apiKey: "AIzaSyA3PHjbAkFG5s30qfNBnvY1QE-hfLznOck",
+  authDomain: "nawabshah-estate-agency1.firebaseapp.com",
+  projectId: "nawabshah-estate-agency1",
+  storageBucket: "nawabshah-estate-agency1.firebasestorage.app",
+  messagingSenderId: "667336845551",
+  appId: "1:667336845551:web:e03ec6bfeafddff15f931a",
+  measurementId: "G-SFR7T783LX",
+  firestoreDatabaseId: "ai-studio-nawabshahestatea-800f90ec-9aa8-4eda-bd62-6cc17dbd8df6"
+};
 
 // Sanitizes a full Firebase config object
 export function sanitizeFirebaseConfig(raw: Partial<FirebaseConfigObject>): FirebaseConfigObject {
   const cleanedProjectId = cleanString(raw.projectId);
-  // Specifically ensure projectId resolves strictly to nawabshah-estate-agency1 if not custom or if placeholder
   const finalProjectId =
     cleanedProjectId && !cleanedProjectId.includes('your-project') && !cleanedProjectId.includes('YOUR_')
       ? cleanedProjectId
-      : 'nawabshah-estate-agency1';
+      : VERIFIED_FIREBASE_CONFIG.projectId;
 
   const cleanedApiKey = cleanString(raw.apiKey);
   const cleanedAuthDomain = cleanString(raw.authDomain);
   const cleanedStorageBucket = cleanString(raw.storageBucket);
   const cleanedMessagingSenderId = cleanString(raw.messagingSenderId);
   const cleanedAppId = cleanString(raw.appId);
+  const cleanedMeasurementId = cleanString(raw.measurementId);
+  const cleanedDatabaseId = cleanString(raw.firestoreDatabaseId);
 
   return {
-    apiKey: cleanedApiKey || 'YOUR_API_KEY_HERE',
-    authDomain: cleanedAuthDomain || `${finalProjectId}.firebaseapp.com`,
+    apiKey: cleanedApiKey || VERIFIED_FIREBASE_CONFIG.apiKey,
+    authDomain: cleanedAuthDomain || VERIFIED_FIREBASE_CONFIG.authDomain,
     projectId: finalProjectId,
-    storageBucket: cleanedStorageBucket || `${finalProjectId}.firebasestorage.app`,
-    messagingSenderId: cleanedMessagingSenderId || 'YOUR_MESSAGING_SENDER_ID',
-    appId: cleanedAppId || 'YOUR_APP_ID_HERE'
+    storageBucket: cleanedStorageBucket || VERIFIED_FIREBASE_CONFIG.storageBucket,
+    messagingSenderId: cleanedMessagingSenderId || VERIFIED_FIREBASE_CONFIG.messagingSenderId,
+    appId: cleanedAppId || VERIFIED_FIREBASE_CONFIG.appId,
+    measurementId: cleanedMeasurementId || VERIFIED_FIREBASE_CONFIG.measurementId,
+    firestoreDatabaseId: cleanedDatabaseId || VERIFIED_FIREBASE_CONFIG.firestoreDatabaseId
   };
 }
 
 // ============================================================================
-// 15. FIREBASE CONFIGURATION (CLEAN STRING RESOLUTION)
-// Environment variables sanitized to guarantee zero extra quotation marks.
+// 15. DEFAULT FIREBASE CONFIGURATION
 // ============================================================================
-const envProjectId = cleanString(import.meta.env.VITE_FIREBASE_PROJECT_ID);
-const targetProjectId =
-  envProjectId && !envProjectId.includes('your-project')
-    ? envProjectId
-    : 'nawabshah-estate-agency1';
+export const defaultFirebaseConfig: FirebaseConfigObject = sanitizeFirebaseConfig({
+  apiKey: cleanString(import.meta.env.VITE_FIREBASE_API_KEY) || VERIFIED_FIREBASE_CONFIG.apiKey,
+  authDomain: cleanString(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) || VERIFIED_FIREBASE_CONFIG.authDomain,
+  projectId: cleanString(import.meta.env.VITE_FIREBASE_PROJECT_ID) || VERIFIED_FIREBASE_CONFIG.projectId,
+  storageBucket: cleanString(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) || VERIFIED_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId: cleanString(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID) || VERIFIED_FIREBASE_CONFIG.messagingSenderId,
+  appId: cleanString(import.meta.env.VITE_FIREBASE_APP_ID) || VERIFIED_FIREBASE_CONFIG.appId,
+  measurementId: cleanString(import.meta.env.VITE_FIREBASE_MEASUREMENT_ID) || VERIFIED_FIREBASE_CONFIG.measurementId,
+  firestoreDatabaseId: cleanString(appletConfig.firestoreDatabaseId) || VERIFIED_FIREBASE_CONFIG.firestoreDatabaseId
+});
 
-export const defaultFirebaseConfig: FirebaseConfigObject = {
-  apiKey: cleanString(import.meta.env.VITE_FIREBASE_API_KEY) || 'YOUR_API_KEY_HERE',
-  authDomain: cleanString(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) || `${targetProjectId}.firebaseapp.com`,
-  projectId: targetProjectId,
-  storageBucket: cleanString(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) || `${targetProjectId}.firebasestorage.app`,
-  messagingSenderId: cleanString(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID) || 'YOUR_MESSAGING_SENDER_ID',
-  appId: cleanString(import.meta.env.VITE_FIREBASE_APP_ID) || 'YOUR_APP_ID_HERE'
-};
-
-// Retrieve active config with automatic sanitization and quote cleanup
+// Retrieve active config with automatic sanitization
 export function getActiveFirebaseConfig(): FirebaseConfigObject {
   try {
     const saved = localStorage.getItem('nawabshah_firebase_config');
@@ -97,7 +110,6 @@ export function getActiveFirebaseConfig(): FirebaseConfigObject {
       const parsed = JSON.parse(saved);
       const sanitized = sanitizeFirebaseConfig(parsed);
 
-      // If the saved version had extraneous quotes, overwrite with the clean sanitized version
       if (JSON.stringify(parsed) !== JSON.stringify(sanitized)) {
         localStorage.setItem('nawabshah_firebase_config', JSON.stringify(sanitized));
       }
@@ -147,10 +159,12 @@ try {
   }
 
   authInstance = getAuth(appInstance);
-  dbInstance = getFirestore(appInstance);
+  // Pass firestoreDatabaseId if configured
+  const dbId = activeConfig.firestoreDatabaseId;
+  dbInstance = dbId ? getFirestore(appInstance, dbId) : getFirestore(appInstance);
   storageInstance = getStorage(appInstance);
 } catch (error) {
-  console.warn('Firebase initialization note (waiting for project credentials):', error);
+  console.warn('Firebase initialization note:', error);
 }
 
 export const app = appInstance;
@@ -158,18 +172,15 @@ export const auth = authInstance;
 export const db = dbInstance;
 export const storage = storageInstance;
 
-// Connection tester
-export async function testFirestoreConnection(): Promise<boolean> {
-  if (!db || !isFirebaseConfigured()) return false;
+// Validate Connection to Firestore on boot as mandated
+async function testConnection() {
+  if (!db || !isFirebaseConfigured()) return;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-    return true;
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase client is offline or network unavailable.');
-      return false;
+      console.warn('Please check your Firebase configuration: client is offline.');
     }
-    // Any permission error still indicates successful server connection reachability
-    return true;
   }
 }
+testConnection();
