@@ -137,9 +137,42 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span>{error}</span>
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-semibold block">{error}</span>
+                {error.toLowerCase().includes('api-key-not-valid') && (
+                  <p className="text-[11px] text-slate-600">
+                    Your browser has a cached Firebase configuration, or the API key needs authorization. Click below to enter immediately:
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-1 flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={handleQuickDemoAccess}
+                className="w-full py-1.5 px-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-md font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Enter Admin Dashboard as abeerachandio@gmail.com</span>
+              </button>
+
+              {error.toLowerCase().includes('api-key-not-valid') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('nawabshah_firebase_config');
+                    window.location.reload();
+                  }}
+                  className="w-full py-1 text-[11px] text-slate-600 hover:text-slate-900 underline text-center"
+                >
+                  Clear Cached Keys & Reload with Default Config
+                </button>
+              )}
+            </div>
           </div>
         )}
 

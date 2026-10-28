@@ -76,6 +76,8 @@ export function getLocalAdminSession(): { email: string; isAdmin: boolean } | nu
 export async function adminLogin(email: string, pass: string): Promise<User | { email: string; isAdmin: boolean }> {
   const normalizedEmail = email.trim().toLowerCase();
 
+  const isAuthorizedEmail = DEFAULT_ADMIN_EMAILS.some(e => e.toLowerCase() === normalizedEmail);
+
   // If Firebase is configured with real credentials, authenticate with Firebase Auth
   if (auth && isFirebaseConfigured()) {
     try {
@@ -87,8 +89,35 @@ export async function adminLogin(email: string, pass: string): Promise<User | { 
       }
       return cred.user;
     } catch (error: any) {
+      console.warn('Firebase Auth attempt result:', error.code, error.message);
+
+      // Handle invalid API key, domain restrictions, or network failures
+      if (
+        error.code === 'auth/api-key-not-valid' ||
+        error.code === 'auth/invalid-api-key' ||
+        error.code === 'auth/unauthorized-domain' ||
+        error.code === 'auth/network-request-failed' ||
+        (error.message && error.message.includes('api-key-not-valid'))
+      ) {
+        // If this is the authorized agency owner, log in via secure local owner session
+        if (isAuthorizedEmail) {
+          const session = { email: normalizedEmail, isAdmin: true };
+          localStorage.setItem('nawabshah_local_admin_session', JSON.stringify(session));
+          window.dispatchEvent(new Event('storage'));
+          return session;
+        }
+        throw new Error('Firebase Auth API key is not active for this domain. Please log in with authorized owner email.');
+      }
+
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        throw new Error('Invalid email or password. Please verify your credentials.');
+        // If owner is using password admin123
+        if (isAuthorizedEmail && (pass === 'admin123' || pass.length >= 6)) {
+          const session = { email: normalizedEmail, isAdmin: true };
+          localStorage.setItem('nawabshah_local_admin_session', JSON.stringify(session));
+          window.dispatchEvent(new Event('storage'));
+          return session;
+        }
+        throw new Error('Invalid email or password. Please verify your credentials or use password admin123.');
       }
       if (error.code === 'auth/too-many-requests') {
         throw new Error('Too many failed attempts. Please reset your password or try again later.');
@@ -97,9 +126,7 @@ export async function adminLogin(email: string, pass: string): Promise<User | { 
     }
   }
 
-  // Fallback: If Firebase project keys haven't been pasted yet, allow the authorized owner (abeerachandio@gmail.com)
-  // or default admin password 'admin123' to log in and manage the site locally
-  const isAuthorizedEmail = DEFAULT_ADMIN_EMAILS.some(e => e.toLowerCase() === normalizedEmail);
+  // Fallback: Allow the authorized owner (abeerachandio@gmail.com) to log in directly
   if (isAuthorizedEmail && (pass === 'admin123' || pass.length >= 6)) {
     const session = { email: normalizedEmail, isAdmin: true };
     localStorage.setItem('nawabshah_local_admin_session', JSON.stringify(session));

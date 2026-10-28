@@ -102,13 +102,22 @@ export const defaultFirebaseConfig: FirebaseConfigObject = sanitizeFirebaseConfi
   firestoreDatabaseId: cleanString(appletConfig.firestoreDatabaseId) || VERIFIED_FIREBASE_CONFIG.firestoreDatabaseId
 });
 
-// Retrieve active config with automatic sanitization
+// Retrieve active config with automatic sanitization and stale-key migration
 export function getActiveFirebaseConfig(): FirebaseConfigObject {
   try {
     const saved = localStorage.getItem('nawabshah_firebase_config');
     if (saved) {
       const parsed = JSON.parse(saved);
       const sanitized = sanitizeFirebaseConfig(parsed);
+
+      // Detect and auto-correct old mismatched API keys (e.g. from prior provisioned apps)
+      if (
+        sanitized.projectId === 'nawabshah-estate-agency1' &&
+        sanitized.apiKey !== VERIFIED_FIREBASE_CONFIG.apiKey
+      ) {
+        localStorage.setItem('nawabshah_firebase_config', JSON.stringify(VERIFIED_FIREBASE_CONFIG));
+        return VERIFIED_FIREBASE_CONFIG;
+      }
 
       if (JSON.stringify(parsed) !== JSON.stringify(sanitized)) {
         localStorage.setItem('nawabshah_firebase_config', JSON.stringify(sanitized));
