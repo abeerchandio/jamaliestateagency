@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Check, Database, ExternalLink, AlertCircle, Copy, Info } from 'lucide-react';
-import { getActiveFirebaseConfig, saveFirebaseConfig, FirebaseConfigObject } from '../../firebase/config';
+import { getActiveFirebaseConfig, saveFirebaseConfig, FirebaseConfigObject, cleanString } from '../../firebase/config';
 
 interface FirebaseConfigModalProps {
   isOpen: boolean;
@@ -9,12 +9,12 @@ interface FirebaseConfigModalProps {
 
 export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen, onClose }) => {
   const current = getActiveFirebaseConfig();
-  const [apiKey, setApiKey] = useState(current.apiKey.includes('YOUR_') ? '' : current.apiKey);
-  const [authDomain, setAuthDomain] = useState(current.authDomain.includes('your-project') ? '' : current.authDomain);
-  const [projectId, setProjectId] = useState(current.projectId.includes('your-project') ? '' : current.projectId);
-  const [storageBucket, setStorageBucket] = useState(current.storageBucket.includes('your-project') ? '' : current.storageBucket);
-  const [messagingSenderId, setMessagingSenderId] = useState(current.messagingSenderId.includes('YOUR_') ? '' : current.messagingSenderId);
-  const [appId, setAppId] = useState(current.appId.includes('YOUR_') ? '' : current.appId);
+  const [apiKey, setApiKey] = useState(cleanString(current.apiKey).includes('YOUR_') ? '' : cleanString(current.apiKey));
+  const [authDomain, setAuthDomain] = useState(cleanString(current.authDomain).includes('your-project') ? '' : cleanString(current.authDomain));
+  const [projectId, setProjectId] = useState(cleanString(current.projectId).includes('your-project') ? 'nawabshah-estate-agency1' : cleanString(current.projectId) || 'nawabshah-estate-agency1');
+  const [storageBucket, setStorageBucket] = useState(cleanString(current.storageBucket).includes('your-project') ? '' : cleanString(current.storageBucket));
+  const [messagingSenderId, setMessagingSenderId] = useState(cleanString(current.messagingSenderId).includes('YOUR_') ? '' : cleanString(current.messagingSenderId));
+  const [appId, setAppId] = useState(cleanString(current.appId).includes('YOUR_') ? '' : cleanString(current.appId));
 
   const [rawJson, setRawJson] = useState('');
   const [showJsonInput, setShowJsonInput] = useState(false);
@@ -38,12 +38,12 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen
       const formatted = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
       const parsed = JSON.parse(formatted);
 
-      if (parsed.apiKey) setApiKey(parsed.apiKey);
-      if (parsed.authDomain) setAuthDomain(parsed.authDomain);
-      if (parsed.projectId) setProjectId(parsed.projectId);
-      if (parsed.storageBucket) setStorageBucket(parsed.storageBucket);
-      if (parsed.messagingSenderId) setMessagingSenderId(parsed.messagingSenderId);
-      if (parsed.appId) setAppId(parsed.appId);
+      if (parsed.apiKey) setApiKey(cleanString(parsed.apiKey));
+      if (parsed.authDomain) setAuthDomain(cleanString(parsed.authDomain));
+      if (parsed.projectId) setProjectId(cleanString(parsed.projectId) || 'nawabshah-estate-agency1');
+      if (parsed.storageBucket) setStorageBucket(cleanString(parsed.storageBucket));
+      if (parsed.messagingSenderId) setMessagingSenderId(cleanString(parsed.messagingSenderId));
+      if (parsed.appId) setAppId(cleanString(parsed.appId));
 
       setShowJsonInput(false);
     } catch (e: any) {
@@ -53,18 +53,21 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!apiKey.trim() || !projectId.trim()) {
+    const cleanApiKey = cleanString(apiKey);
+    const cleanProjectId = cleanString(projectId) || 'nawabshah-estate-agency1';
+
+    if (!cleanApiKey || !cleanProjectId) {
       setError('apiKey and projectId are required.');
       return;
     }
 
     const newConfig: FirebaseConfigObject = {
-      apiKey: apiKey.trim(),
-      authDomain: authDomain.trim() || `${projectId.trim()}.firebaseapp.com`,
-      projectId: projectId.trim(),
-      storageBucket: storageBucket.trim() || `${projectId.trim()}.firebasestorage.app`,
-      messagingSenderId: messagingSenderId.trim(),
-      appId: appId.trim()
+      apiKey: cleanApiKey,
+      authDomain: cleanString(authDomain) || `${cleanProjectId}.firebaseapp.com`,
+      projectId: cleanProjectId,
+      storageBucket: cleanString(storageBucket) || `${cleanProjectId}.firebasestorage.app`,
+      messagingSenderId: cleanString(messagingSenderId),
+      appId: cleanString(appId)
     };
 
     saveFirebaseConfig(newConfig);
@@ -181,7 +184,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen
                 required
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                placeholder="nawabshah-estate-123"
+                placeholder="nawabshah-estate-agency1"
                 className="w-full px-3 py-1.5 text-xs font-mono bg-slate-50 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -194,7 +197,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen
                 type="text"
                 value={authDomain}
                 onChange={(e) => setAuthDomain(e.target.value)}
-                placeholder="your-project.firebaseapp.com"
+                placeholder="nawabshah-estate-agency1.firebaseapp.com"
                 className="w-full px-3 py-1.5 text-xs font-mono bg-slate-50 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -208,7 +211,7 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen
               type="text"
               value={storageBucket}
               onChange={(e) => setStorageBucket(e.target.value)}
-              placeholder="your-project.firebasestorage.app"
+              placeholder="nawabshah-estate-agency1.firebasestorage.app"
               className="w-full px-3 py-1.5 text-xs font-mono bg-slate-50 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>

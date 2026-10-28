@@ -4,19 +4,37 @@ import { getFirestore, Firestore, doc, getDocFromServer } from 'firebase/firesto
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // ============================================================================
-// 15. FIREBASE CONFIGURATION SECTION (PASTE YOUR CREDENTIALS HERE)
+// STRING SANITIZATION HELPER
+// Strips all leading/trailing quotation marks (" or ') and whitespace
 // ============================================================================
-// You can either:
-// 1. Paste your config values directly into this object below, OR
-// 2. Set them in your environment variables (.env file prefixed with VITE_FIREBASE_*), OR
-// 3. Paste them directly in the in-app "Connect Firebase" button on the Admin page.
-//
-// Where to get these from Firebase Console:
-// -> Go to https://console.firebase.google.com/
-// -> Select your project -> Project Settings (gear icon) -> General
-// -> Scroll down to "Your apps" -> Click on the Web icon (</>)
-// -> Copy the `firebaseConfig` object and paste the values below.
-// ============================================================================
+export function cleanString(val: unknown): string {
+  if (val == null) return '';
+  let str = String(val).trim();
+
+  // Iteratively remove outer single/double quotes and escaped quotes
+  let changed = true;
+  while (changed && str.length > 0) {
+    changed = false;
+    // Check for matching quotes
+    if (
+      (str.startsWith('"') && str.endsWith('"')) ||
+      (str.startsWith("'") && str.endsWith("'"))
+    ) {
+      str = str.slice(1, -1).trim();
+      changed = true;
+    } else if (
+      (str.startsWith('\\"') && str.endsWith('\\"')) ||
+      (str.startsWith("\\'") && str.endsWith("\\'"))
+    ) {
+      str = str.slice(2, -2).trim();
+      changed = true;
+    }
+  }
+
+  // Strip any remaining leading or trailing lone quotes
+  str = str.replace(/^["']+|["']+$/g, '').trim();
+  return str;
+}
 
 export interface FirebaseConfigObject {
   apiKey: string;
@@ -27,23 +45,65 @@ export interface FirebaseConfigObject {
   appId: string;
 }
 
+// Sanitizes a full Firebase config object
+export function sanitizeFirebaseConfig(raw: Partial<FirebaseConfigObject>): FirebaseConfigObject {
+  const cleanedProjectId = cleanString(raw.projectId);
+  // Specifically ensure projectId resolves strictly to nawabshah-estate-agency1 if not custom or if placeholder
+  const finalProjectId =
+    cleanedProjectId && !cleanedProjectId.includes('your-project') && !cleanedProjectId.includes('YOUR_')
+      ? cleanedProjectId
+      : 'nawabshah-estate-agency1';
+
+  const cleanedApiKey = cleanString(raw.apiKey);
+  const cleanedAuthDomain = cleanString(raw.authDomain);
+  const cleanedStorageBucket = cleanString(raw.storageBucket);
+  const cleanedMessagingSenderId = cleanString(raw.messagingSenderId);
+  const cleanedAppId = cleanString(raw.appId);
+
+  return {
+    apiKey: cleanedApiKey || 'YOUR_API_KEY_HERE',
+    authDomain: cleanedAuthDomain || `${finalProjectId}.firebaseapp.com`,
+    projectId: finalProjectId,
+    storageBucket: cleanedStorageBucket || `${finalProjectId}.firebasestorage.app`,
+    messagingSenderId: cleanedMessagingSenderId || 'YOUR_MESSAGING_SENDER_ID',
+    appId: cleanedAppId || 'YOUR_APP_ID_HERE'
+  };
+}
+
+// ============================================================================
+// 15. FIREBASE CONFIGURATION (CLEAN STRING RESOLUTION)
+// Environment variables sanitized to guarantee zero extra quotation marks.
+// ============================================================================
+const envProjectId = cleanString(import.meta.env.VITE_FIREBASE_PROJECT_ID);
+const targetProjectId =
+  envProjectId && !envProjectId.includes('your-project')
+    ? envProjectId
+    : 'nawabshah-estate-agency1';
+
 export const defaultFirebaseConfig: FirebaseConfigObject = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY_HERE",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "your-project-id.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "your-project-id",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "your-project-id.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID_HERE"
+  apiKey: cleanString(import.meta.env.VITE_FIREBASE_API_KEY) || 'YOUR_API_KEY_HERE',
+  authDomain: cleanString(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) || `${targetProjectId}.firebaseapp.com`,
+  projectId: targetProjectId,
+  storageBucket: cleanString(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) || `${targetProjectId}.firebasestorage.app`,
+  messagingSenderId: cleanString(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID) || 'YOUR_MESSAGING_SENDER_ID',
+  appId: cleanString(import.meta.env.VITE_FIREBASE_APP_ID) || 'YOUR_APP_ID_HERE'
 };
 
-// Retrieve active config (prefers localStorage override if user pasted it in the UI, else env/defaults)
+// Retrieve active config with automatic sanitization and quote cleanup
 export function getActiveFirebaseConfig(): FirebaseConfigObject {
   try {
     const saved = localStorage.getItem('nawabshah_firebase_config');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.apiKey && parsed.projectId && !parsed.apiKey.includes('YOUR_')) {
-        return parsed;
+      const sanitized = sanitizeFirebaseConfig(parsed);
+
+      // If the saved version had extraneous quotes, overwrite with the clean sanitized version
+      if (JSON.stringify(parsed) !== JSON.stringify(sanitized)) {
+        localStorage.setItem('nawabshah_firebase_config', JSON.stringify(sanitized));
+      }
+
+      if (sanitized.apiKey && !sanitized.apiKey.includes('YOUR_')) {
+        return sanitized;
       }
     }
   } catch {
@@ -54,7 +114,8 @@ export function getActiveFirebaseConfig(): FirebaseConfigObject {
 
 export function saveFirebaseConfig(config: FirebaseConfigObject): void {
   try {
-    localStorage.setItem('nawabshah_firebase_config', JSON.stringify(config));
+    const cleanConfig = sanitizeFirebaseConfig(config);
+    localStorage.setItem('nawabshah_firebase_config', JSON.stringify(cleanConfig));
     window.location.reload();
   } catch (err) {
     console.error('Failed to save Firebase config:', err);
@@ -64,23 +125,23 @@ export function saveFirebaseConfig(config: FirebaseConfigObject): void {
 export function isFirebaseConfigured(): boolean {
   const config = getActiveFirebaseConfig();
   return Boolean(
-    config.apiKey && 
-    config.projectId && 
-    !config.apiKey.includes('YOUR_') && 
+    config.apiKey &&
+    config.projectId &&
+    !config.apiKey.includes('YOUR_') &&
     !config.projectId.includes('your-project')
   );
 }
 
-// Initialize Firebase services safely
+// Initialize Firebase services safely with sanitized config
 let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
 let dbInstance: Firestore | null = null;
 let storageInstance: FirebaseStorage | null = null;
 
 try {
-  const config = getActiveFirebaseConfig();
+  const activeConfig = getActiveFirebaseConfig();
   if (getApps().length === 0) {
-    appInstance = initializeApp(config);
+    appInstance = initializeApp(activeConfig);
   } else {
     appInstance = getApp();
   }
