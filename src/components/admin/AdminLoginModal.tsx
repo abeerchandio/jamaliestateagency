@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, Key, AlertCircle, CheckCircle, ShieldCheck } from 'lucide-react';
-import { adminLogin, adminSendPasswordReset } from '../../firebase/authService';
+import { adminLogin, adminSendPasswordReset, loginAsDemoAdmin } from '../../firebase/authService';
 import { isFirebaseConfigured } from '../../firebase/config';
 
 interface AdminLoginModalProps {
@@ -16,7 +16,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onSuccess,
   onOpenConfigModal
 }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('abeerachandio@gmail.com');
   const [password, setPassword] = useState('');
   const [isResetMode, setIsResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,15 +25,16 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleQuickDemoAccess = () => {
+    loginAsDemoAdmin();
+    onSuccess();
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
-
-    if (!isFirebaseConfigured()) {
-      setError('Firebase is not yet configured with your project credentials. Please connect Firebase first.');
-      return;
-    }
 
     if (!email.trim()) {
       setError('Please enter your administrator email address.');
@@ -44,12 +45,17 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
     try {
       if (isResetMode) {
+        if (!isFirebaseConfigured()) {
+          setError('Password reset requires live Firebase Auth. Please connect Firebase first.');
+          setLoading(false);
+          return;
+        }
         await adminSendPasswordReset(email);
         setSuccessMsg('Password reset email sent! Please check your inbox.');
         setLoading(false);
       } else {
         if (!password) {
-          setError('Please enter your password.');
+          setError('Please enter your password (use "admin123" for demo access).');
           setLoading(false);
           return;
         }
@@ -94,14 +100,27 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </p>
 
         {!isFirebaseConfigured() && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1.5">
-            <div className="font-semibold flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Firebase Credentials Required</span>
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-2">
+            <div className="font-semibold flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                Preview Mode Active
+              </span>
+              <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-mono">
+                Offline Admin
+              </span>
             </div>
-            <p className="text-slate-600">
-              Your Firebase project credentials are not yet connected.
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              You can log in instantly as the authorized owner (<b>abeerachandio@gmail.com</b>) using password <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-amber-900 font-bold">admin123</code> or by clicking below:
             </p>
+            <button
+              type="button"
+              onClick={handleQuickDemoAccess}
+              className="w-full py-1.5 px-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-md font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>1-Click Instant Owner Access</span>
+            </button>
             {onOpenConfigModal && (
               <button
                 type="button"
@@ -109,9 +128,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   onClose();
                   onOpenConfigModal();
                 }}
-                className="text-emerald-700 font-bold underline hover:text-emerald-800 cursor-pointer block mt-1"
+                className="text-emerald-700 font-bold underline hover:text-emerald-800 cursor-pointer block mt-1 text-[11px]"
               >
-                Click here to paste your Firebase Configuration
+                Or click here to paste your Firebase credentials
               </button>
             )}
           </div>

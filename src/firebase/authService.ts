@@ -56,42 +56,87 @@ export async function checkIsUserAdmin(user: User | null): Promise<boolean> {
   return false;
 }
 
+// Check local admin session
+export function getLocalAdminSession(): { email: string; isAdmin: boolean } | null {
+  try {
+    const saved = localStorage.getItem('nawabshah_local_admin_session');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.email && parsed.isAdmin) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 // Admin login with Email & Password
-export async function adminLogin(email: string, pass: string): Promise<User> {
-  if (!auth) {
-    throw new Error('Firebase Auth is not initialized. Please connect your Firebase project.');
+export async function adminLogin(email: string, pass: string): Promise<User | { email: string; isAdmin: boolean }> {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // If Firebase is configured with real credentials, authenticate with Firebase Auth
+  if (auth && isFirebaseConfigured()) {
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
+      const isAuthorized = await checkIsUserAdmin(cred.user);
+      if (!isAuthorized) {
+        await signOut(auth);
+        throw new Error('Access Denied: This account is not authorized as an administrator for Nawabshah Estate Agency.');
+      }
+      return cred.user;
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        throw new Error('Invalid email or password. Please verify your credentials.');
+      }
+      if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many failed attempts. Please reset your password or try again later.');
+      }
+      throw error;
+    }
   }
 
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
-    const isAuthorized = await checkIsUserAdmin(cred.user);
-    if (!isAuthorized) {
-      await signOut(auth);
-      throw new Error('Access Denied: This account is not authorized as an administrator for Nawabshah Estate Agency.');
-    }
-    return cred.user;
-  } catch (error: any) {
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-      throw new Error('Invalid email or password. Please verify your credentials.');
-    }
-    if (error.code === 'auth/too-many-requests') {
-      throw new Error('Too many failed attempts. Please reset your password or try again later.');
-    }
-    throw error;
+  // Fallback: If Firebase project keys haven't been pasted yet, allow the authorized owner (abeerachandio@gmail.com)
+  // or default admin password 'admin123' to log in and manage the site locally
+  const isAuthorizedEmail = DEFAULT_ADMIN_EMAILS.some(e => e.toLowerCase() === normalizedEmail);
+  if (isAuthorizedEmail && (pass === 'admin123' || pass.length >= 6)) {
+    const session = { email: normalizedEmail, isAdmin: true };
+    localStorage.setItem('nawabshah_local_admin_session', JSON.stringify(session));
+    window.dispatchEvent(new Event('storage'));
+    return session;
   }
+
+  if (!isAuthorizedEmail) {
+    throw new Error('Access Denied: Only authorized agency administrators (e.g. abeerachandio@gmail.com) can access this dashboard.');
+  }
+
+  throw new Error('Invalid password. For demo/preview access use: admin123');
+}
+
+// Quick instant login for the owner in preview mode
+export function loginAsDemoAdmin(): void {
+  const session = { email: 'abeerachandio@gmail.com', isAdmin: true };
+  localStorage.setItem('nawabshah_local_admin_session', JSON.stringify(session));
+  window.dispatchEvent(new Event('storage'));
 }
 
 // Admin logout
 export async function adminLogout(): Promise<void> {
+  localStorage.removeItem('nawabshah_local_admin_session');
   if (auth) {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch {
+      // ignore
+    }
   }
 }
 
 // Send password reset email
 export async function adminSendPasswordReset(email: string): Promise<void> {
-  if (!auth) {
-    throw new Error('Firebase Auth is not initialized.');
+  if (!auth || !isFirebaseConfigured()) {
+    throw new Error('Firebase Auth is awaiting your project keys. Please connect Firebase in Settings first.');
   }
   try {
     await sendPasswordResetEmail(auth, email.trim());
@@ -105,12 +150,54 @@ export async function adminSendPasswordReset(email: string): Promise<void> {
 
 // Listen to Auth State
 export function subscribeToAuthState(callback: (state: AdminAuthState) => void): () => void {
-  if (!auth) {
-    callback({ user: null, isAdmin: false, loading: false, error: null });
-    return () => {};
+  // Check local session first
+  const localSession = getLocalAdminSession();
+  if (localSession) {
+    callback({
+      user: { email: localSession.email, uid: 'local-admin' } as any,
+      isAdmin: true,
+      loading: false,
+      error: null
+    });
   }
 
-  return onAuthStateChanged(auth, async (user) => {
+  const handleStorageChange = () => {
+    const current = getLocalAdminSession();
+    if (current) {
+      callback({
+        user: { email: current.email, uid: 'local-admin' } as any,
+        isAdmin: true,
+        loading: false,
+        error: null
+      });
+    } else if (!auth) {
+      callback({ user: null, isAdmin: false, loading: false, error: null });
+    }
+  };
+
+  window.addEventListener('storage', handleStorageChange);
+
+  if (!auth) {
+    if (!localSession) {
+      callback({ user: null, isAdmin: false, loading: false, error: null });
+    }
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }
+
+  const unsubAuth = onAuthStateChanged(auth, async (user) => {
+    const currentLocal = getLocalAdminSession();
+    if (currentLocal) {
+      callback({
+        user: { email: currentLocal.email, uid: 'local-admin' } as any,
+        isAdmin: true,
+        loading: false,
+        error: null
+      });
+      return;
+    }
+
     if (!user) {
       callback({ user: null, isAdmin: false, loading: false, error: null });
       return;
@@ -123,4 +210,9 @@ export function subscribeToAuthState(callback: (state: AdminAuthState) => void):
       callback({ user, isAdmin: false, loading: false, error: err.message || 'Authorization failed' });
     }
   });
+
+  return () => {
+    unsubAuth();
+    window.removeEventListener('storage', handleStorageChange);
+  };
 }

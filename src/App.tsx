@@ -59,7 +59,9 @@ export default function App() {
     return window.location.pathname === '/admin' || window.location.hash === '#admin';
   });
 
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(() => {
+    return window.location.pathname === '/admin' || window.location.hash === '#admin';
+  });
   const [firebaseConfigModalOpen, setFirebaseConfigModalOpen] = useState(false);
 
   // Modals for public site
@@ -86,6 +88,9 @@ export default function App() {
     const handlePopState = () => {
       const isPathAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
       setIsAdminView(isPathAdmin);
+      if (isPathAdmin && !authState.isAdmin) {
+        setLoginModalOpen(true);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
