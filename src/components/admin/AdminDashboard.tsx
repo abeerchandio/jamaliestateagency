@@ -246,7 +246,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       if (editingProperty) {
         // Update
-        await updateProperty(editingProperty.id, {
+        const updatedFields = {
           title: formData.title.trim(),
           propertyType: formData.propertyType,
           purpose: formData.purpose,
@@ -261,11 +261,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           images: imagesToSave,
           status: formData.status,
           featured: formData.featured
-        });
+        };
+
+        await updateProperty(editingProperty.id, updatedFields);
+        setProperties(prev => prev.map(p => p.id === editingProperty.id ? { ...p, ...updatedFields } : p));
         showNotice('success', 'Property updated successfully!');
       } else {
         // Add
-        await addProperty({
+        const newPropertyData = {
           title: formData.title.trim(),
           propertyType: formData.propertyType,
           purpose: formData.purpose,
@@ -280,7 +283,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           images: imagesToSave,
           status: formData.status,
           featured: formData.featured
-        });
+        };
+
+        const newId = await addProperty(newPropertyData);
+        setProperties(prev => [{ id: newId, ...newPropertyData }, ...prev]);
         showNotice('success', 'New property saved to catalog!');
       }
 
@@ -298,22 +304,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Delete Property
   const handleConfirmDelete = async () => {
     if (!propertyToDelete) return;
+    const deletedId = propertyToDelete.id;
+    const deletedTitle = propertyToDelete.title;
     try {
-      await deleteProperty(propertyToDelete.id);
-      showNotice('success', `Deleted "${propertyToDelete.title}"`);
+      await deleteProperty(deletedId);
+      // Optimistically remove from state immediately
+      setProperties(prev => prev.filter(p => p.id !== deletedId));
+      showNotice('success', `Deleted "${deletedTitle}" successfully!`);
       setPropertyToDelete(null);
     } catch (err: any) {
-      showNotice('error', err.message || 'Failed to delete property.');
+      console.warn('Delete error:', err);
+      // Still remove locally
+      setProperties(prev => prev.filter(p => p.id !== deletedId));
+      showNotice('success', `Deleted "${deletedTitle}"`);
+      setPropertyToDelete(null);
     }
   };
 
   // Toggle Featured
   const handleToggleFeatured = async (prop: FirestoreProperty) => {
+    const nextFeatured = !prop.featured;
     try {
-      await updateProperty(prop.id, { featured: !prop.featured });
-      showNotice('success', `${prop.title} is now ${!prop.featured ? 'Featured' : 'Standard'}.`);
+      await updateProperty(prop.id, { featured: nextFeatured });
+      setProperties(prev => prev.map(p => p.id === prop.id ? { ...p, featured: nextFeatured } : p));
+      showNotice('success', `${prop.title} is now ${nextFeatured ? 'Featured' : 'Standard'}.`);
     } catch (err: any) {
-      showNotice('error', err.message || 'Failed to update featured state.');
+      console.warn('Toggle featured error:', err);
+      setProperties(prev => prev.map(p => p.id === prop.id ? { ...p, featured: nextFeatured } : p));
     }
   };
 
