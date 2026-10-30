@@ -157,6 +157,7 @@ export function isFirebaseConfigured(): boolean {
 let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
 let dbInstance: Firestore | null = null;
+let dbDefaultInstance: Firestore | null = null;
 let storageInstance: FirebaseStorage | null = null;
 
 try {
@@ -168,9 +169,11 @@ try {
   }
 
   authInstance = getAuth(appInstance);
-  // Pass firestoreDatabaseId if configured
+  // Named provisioned database (Firestore Enterprise)
   const dbId = activeConfig.firestoreDatabaseId;
   dbInstance = dbId ? getFirestore(appInstance, dbId) : getFirestore(appInstance);
+  // Default project database (for cross-device synchronization)
+  dbDefaultInstance = getFirestore(appInstance);
   storageInstance = getStorage(appInstance);
 } catch (error) {
   console.warn('Firebase initialization note:', error);
@@ -179,6 +182,7 @@ try {
 export const app = appInstance;
 export const auth = authInstance;
 export const db = dbInstance;
+export const dbDefault = dbDefaultInstance;
 export const storage = storageInstance;
 
 // Validate Connection to Firestore on boot as mandated

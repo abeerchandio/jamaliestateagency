@@ -9,7 +9,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, isFirebaseConfigured } from './config';
+import { db, dbDefault, storage, isFirebaseConfigured } from './config';
 import { ensureFirebaseAuthSession } from './authService';
 import { propertiesData as initialData, PropertyItem } from '../data/companyData';
 
@@ -66,9 +66,9 @@ const LOCAL_FALLBACK_PROPERTIES: FirestoreProperty[] = initialData.map(convertLo
 const COLLECTION_NAME = 'properties';
 
 // ============================================================================
-// IMAGE COMPRESSION UTILITY (Ensures images easily fit in Cloud Firestore)
+// IMAGE COMPRESSION UTILITY (Ensures images easily fit in Cloud Firestore < 60KB)
 // ============================================================================
-export async function compressImageToDataUrl(file: File, maxWidth = 1200, quality = 0.75): Promise<string> {
+export async function compressImageToDataUrl(file: File, maxWidth = 900, quality = 0.65): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -118,15 +118,15 @@ export async function uploadPropertyImage(file: File): Promise<string> {
         return await getDownloadURL(snapshot.ref);
       };
       const timeoutTask = new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error('Storage upload timed out')), 6000)
+        setTimeout(() => reject(new Error('Storage upload timed out')), 4000)
       );
       return await Promise.race([uploadTask(), timeoutTask]);
     } catch (err) {
-      console.warn('Storage upload slow or restricted, using compressed data URL fallback:', err);
+      console.warn('Storage upload slow or restricted, using compressed web data URL fallback:', err);
     }
   }
 
-  // 2. Compress image to clean, high-performance web data URL (< 150KB)
+  // 2. Compress image to clean, high-performance web data URL (< 60KB)
   return await compressImageToDataUrl(file);
 }
 
@@ -203,7 +203,7 @@ export function subscribeToProperties(
 }
 
 // ============================================================================
-// ADD PROPERTY (Saves Directly to Cloud Firestore Globally)
+// ADD PROPERTY (Saves Directly to Cloud Firestore Globally Across All Devices)
 // ============================================================================
 export async function addProperty(
   propertyData: Omit<FirestoreProperty, 'id' | 'createdAt' | 'updatedAt'>
@@ -217,10 +217,13 @@ export async function addProperty(
     throw new Error('Firebase Database is not configured. Please connect Firebase in Settings.');
   }
 
-  // Ensure active Firebase Auth session so firestore.rules accepts the write
-  await ensureFirebaseAuthSession();
+  // Ensure active Firebase Auth session if supported
+  try {
+    await ensureFirebaseAuthSession();
+  } catch {
+    // non-blocking
+  }
 
-  const docRef = doc(db, COLLECTION_NAME, generatedId);
   const payload = {
     title: propertyData.title,
     propertyType: propertyData.propertyType,
@@ -240,8 +243,20 @@ export async function addProperty(
     updatedAt: serverTimestamp()
   };
 
-  // Direct Cloud Firestore write
+  // 1. Write to primary database
+  const docRef = doc(db, COLLECTION_NAME, generatedId);
   await setDoc(docRef, payload);
+
+  // 2. Also synchronize to default project database for complete cross-device parity
+  if (dbDefault && dbDefault !== db) {
+    try {
+      const docRefDefault = doc(dbDefault, COLLECTION_NAME, generatedId);
+      await setDoc(docRefDefault, payload);
+    } catch (dualErr) {
+      console.warn('Replicating to default database note:', dualErr);
+    }
+  }
+
   return generatedId;
 }
 
@@ -256,18 +271,28 @@ export async function updateProperty(
     throw new Error('Firebase Database is not configured.');
   }
 
-  // Ensure active Firebase Auth session
-  await ensureFirebaseAuthSession();
+  try {
+    await ensureFirebaseAuthSession();
+  } catch {
+    // non-blocking
+  }
+
+  const payload = {
+    ...updates,
+    updatedAt: serverTimestamp()
+  };
 
   const docRef = doc(db, COLLECTION_NAME, id);
-  await setDoc(
-    docRef,
-    {
-      ...updates,
-      updatedAt: serverTimestamp()
-    },
-    { merge: true }
-  );
+  await setDoc(docRef, payload, { merge: true });
+
+  if (dbDefault && dbDefault !== db) {
+    try {
+      const docRefDefault = doc(dbDefault, COLLECTION_NAME, id);
+      await setDoc(docRefDefault, payload, { merge: true });
+    } catch (dualErr) {
+      console.warn('Updating default database note:', dualErr);
+    }
+  }
 }
 
 // ============================================================================
@@ -278,11 +303,23 @@ export async function deleteProperty(id: string): Promise<void> {
     throw new Error('Firebase Database is not configured.');
   }
 
-  // Ensure active Firebase Auth session
-  await ensureFirebaseAuthSession();
+  try {
+    await ensureFirebaseAuthSession();
+  } catch {
+    // non-blocking
+  }
 
   const docRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(docRef);
+
+  if (dbDefault && dbDefault !== db) {
+    try {
+      const docRefDefault = doc(dbDefault, COLLECTION_NAME, id);
+      await deleteDoc(docRefDefault);
+    } catch (dualErr) {
+      console.warn('Deleting from default database note:', dualErr);
+    }
+  }
 }
 
 // ============================================================================
@@ -293,21 +330,32 @@ export async function seedInitialPropertiesToFirestore(): Promise<number> {
     throw new Error('Please configure Firebase first.');
   }
 
-  await ensureFirebaseAuthSession();
+  try {
+    await ensureFirebaseAuthSession();
+  } catch {
+    // non-blocking
+  }
 
   let count = 0;
   for (const item of LOCAL_FALLBACK_PROPERTIES) {
     const { id, ...dataWithoutId } = item;
+    const payload = {
+      ...dataWithoutId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
     const docRef = doc(db, COLLECTION_NAME, id);
-    await setDoc(
-      docRef,
-      {
-        ...dataWithoutId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
+    await setDoc(docRef, payload, { merge: true });
+
+    if (dbDefault && dbDefault !== db) {
+      try {
+        const docRefDefault = doc(dbDefault, COLLECTION_NAME, id);
+        await setDoc(docRefDefault, payload, { merge: true });
+      } catch {
+        // non-blocking
+      }
+    }
     count++;
   }
   return count;

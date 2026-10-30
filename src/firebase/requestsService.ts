@@ -7,9 +7,10 @@ import {
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  setDoc
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from './config';
+import { db, dbDefault, isFirebaseConfigured } from './config';
 import { handleFirestoreError, OperationType } from './errorHandling';
 
 export interface FirestorePropertyRequest {
@@ -60,12 +61,20 @@ export async function submitPropertyRequest(data: {
   }
 
   try {
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+    const payload = {
       ...data,
-      status: 'New',
+      status: 'New' as const,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    });
+    };
+    const docRef = await addDoc(collection(db, COLLECTION_NAME), payload);
+    if (dbDefault && dbDefault !== db) {
+      try {
+        await setDoc(doc(dbDefault, COLLECTION_NAME, docRef.id), payload);
+      } catch {
+        // non-blocking
+      }
+    }
     return docRef.id;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, COLLECTION_NAME);
@@ -146,6 +155,16 @@ export async function updatePropertyRequestStatus(
       status,
       updatedAt: serverTimestamp()
     });
+    if (dbDefault && dbDefault !== db) {
+      try {
+        await updateDoc(doc(dbDefault, COLLECTION_NAME, id), {
+          status,
+          updatedAt: serverTimestamp()
+        });
+      } catch {
+        // non-blocking
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -167,6 +186,13 @@ export async function deletePropertyRequest(id: string): Promise<void> {
   const path = `${COLLECTION_NAME}/${id}`;
   try {
     await deleteDoc(doc(db, COLLECTION_NAME, id));
+    if (dbDefault && dbDefault !== db) {
+      try {
+        await deleteDoc(doc(dbDefault, COLLECTION_NAME, id));
+      } catch {
+        // non-blocking
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }

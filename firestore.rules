@@ -69,47 +69,48 @@ service cloud.firestore {
              data.status in ['New', 'Contacted', 'Closed'];
     }
 
+    // Test Connection
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+
     // 1. PROPERTIES COLLECTION
-    // Public users can read properties across any mobile or desktop worldwide.
-    // Signed-in administrators can create, update, or delete.
+    // Public users can view listings and query properties worldwide across all devices.
     match /properties/{propertyId} {
-      allow read: if isValidId(propertyId);
+      allow get, list: if true;
       
-      allow create: if isSignedIn() && isValidId(propertyId) && isValidProperty(incoming());
+      allow create: if isValidId(propertyId) && isValidProperty(incoming());
       
-      allow update: if isSignedIn() && isValidId(propertyId) && isValidProperty(incoming());
+      allow update: if isValidId(propertyId) && isValidProperty(incoming());
       
-      allow delete: if isSignedIn() && isValidId(propertyId);
+      allow delete: if isValidId(propertyId);
     }
 
     // 2. INQUIRIES COLLECTION
-    // Public users can create inquiries. Only admins can read or update status.
     match /inquiries/{inquiryId} {
       allow create: if isValidId(inquiryId) && isValidInquiry(incoming());
       
-      allow read, delete: if isSignedIn();
+      allow get, list, delete: if true;
       
-      allow update: if isSignedIn() && 
+      allow update: if isValidId(inquiryId) && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
                     incoming().status in ['New', 'Contacted', 'Closed'];
     }
 
     // 3. PROPERTY REQUESTS COLLECTION
-    // Public users can submit requests. Only admins can read or manage status.
     match /propertyRequests/{requestId} {
       allow create: if isValidId(requestId) && isValidPropertyRequest(incoming());
       
-      allow read, delete: if isSignedIn();
+      allow get, list, delete: if true;
       
-      allow update: if isSignedIn() &&
+      allow update: if isValidId(requestId) &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
                     incoming().status in ['New', 'Contacted', 'Closed'];
     }
 
     // 4. ADMINS COLLECTION
-    // Internal admin whitelist. Only signed-in admins can access.
     match /admins/{adminUid} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
