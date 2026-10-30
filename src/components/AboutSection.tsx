@@ -42,10 +42,105 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ company, onOpenQuote
           </p>
         </div>
 
-        {/* Main Grid: Visuals on Left, Narrative & Pillars on Right */}
+        {/* Main Grid: Narrative & Pillars on Left (col-span-7), Visuals & Credentials on Right (col-span-5) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
           
-          {/* Left Column: Office Image & Quick Credentials */}
+          {/* Left / Primary Column: Exact User About Us Text & Key Pillars */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            {/* Primary Narrative Card with Exact User Text */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-slate-800/90 via-slate-800/50 to-slate-900 border border-slate-700/80 shadow-xl relative">
+              <div className="space-y-4 text-slate-200 text-sm sm:text-base leading-relaxed">
+                <p className="font-normal text-slate-100 first-letter:text-3xl first-letter:font-black first-letter:text-emerald-400 first-letter:mr-1">
+                  <strong className="text-white font-bold">Nawabshah Estate Agency</strong> is a trusted real estate agency dedicated to providing reliable and professional property solutions across Nawabshah. We deal in residential, commercial, and investment properties, helping clients buy, sell, rent, and invest with confidence.
+                </p>
+
+                <p className="text-slate-300">
+                  Our experienced team focuses on transparency, honest advice, and customer satisfaction. We carefully understand each client’s requirements and provide suitable property options according to their budget and preferences.
+                </p>
+
+                <p className="text-slate-300">
+                  Whether you are looking for your dream home, commercial space, or a profitable investment opportunity, Nawabshah Estate Agency is here to assist you at every step. We aim to build long-term relationships through integrity, professionalism, and dependable real estate services.
+                </p>
+              </div>
+            </div>
+
+            {/* Highlights Breakdown Grid (2 columns) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Residential & Commercial</h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Prime plots, modern family bungalows, and commercial shops across top Nawabshah sectors.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Investment Opportunities</h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Profitable land and property ventures curated with sound market valuation and growth potential.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <Compass className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Tailored to Your Budget</h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Personalized consultations to find verified properties matching your specific financial preferences.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <HeartHandshake className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Integrity & Transparency</h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Honest guidance and long-term client relationships without deceptive middleman margins.
+                </p>
+              </div>
+
+            </div>
+
+            {/* Action Buttons Line */}
+            <div className="pt-2 flex flex-wrap items-center gap-3 sm:gap-4">
+              <button
+                type="button"
+                onClick={() => onOpenQuoteModal('Consultation with Property Advisor')}
+                className="px-6 py-3.5 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-lg hover:shadow-emerald-600/20 cursor-pointer flex items-center gap-2"
+              >
+                <span>Schedule Property Consultation</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <a
+                href="#ceo"
+                className="px-6 py-3.5 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Users className="w-4 h-4 text-emerald-400" />
+                <span>View CEO Profile & Leadership</span>
+              </a>
+            </div>
+
+          </div>
+
+          {/* Right Column: Office Image, Location Details & Quick Credentials */}
           <div className="lg:col-span-5 space-y-6">
             <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl group bg-slate-950">
               <img
@@ -100,101 +195,6 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ company, onOpenQuote
                 <span>Call Directly</span>
               </a>
             </div>
-          </div>
-
-          {/* Right Column: Exact User About Us Text & Key Pillars */}
-          <div className="lg:col-span-7 space-y-6">
-            
-            {/* Primary Narrative Card with Exact User Text */}
-            <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-slate-800/90 via-slate-800/50 to-slate-900 border border-slate-700/80 shadow-xl relative">
-              <div className="space-y-4 text-slate-200 text-sm sm:text-base leading-relaxed">
-                <p className="font-normal text-slate-100 first-letter:text-3xl first-letter:font-black first-letter:text-emerald-400 first-letter:mr-1">
-                  <strong className="text-white font-bold">Nawabshah Estate Agency</strong> is a trusted real estate agency dedicated to providing reliable and professional property solutions across Nawabshah. We deal in residential, commercial, and investment properties, helping clients buy, sell, rent, and invest with confidence.
-                </p>
-
-                <p className="text-slate-300">
-                  Our experienced team focuses on transparency, honest advice, and customer satisfaction. We carefully understand each client’s requirements and provide suitable property options according to their budget and preferences.
-                </p>
-
-                <p className="text-slate-300">
-                  Whether you are looking for your dream home, commercial space, or a profitable investment opportunity, Nawabshah Estate Agency is here to assist you at every step. We aim to build long-term relationships through integrity, professionalism, and dependable real estate services.
-                </p>
-              </div>
-            </div>
-
-            {/* Highlights Breakdown Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">Residential & Commercial</h3>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Prime plots, modern family bungalows, and commercial shops across top Nawabshah sectors.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">Investment Opportunities</h3>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Profitable land and property ventures curated with sound market valuation and growth potential.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                    <Compass className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">Tailored to Your Budget</h3>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Personalized consultations to find verified properties matching your specific financial preferences.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/40 transition-colors">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                    <HeartHandshake className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">Integrity & Transparency</h3>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Honest guidance and long-term client relationships without deceptive middleman margins.
-                </p>
-              </div>
-
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-2 flex flex-wrap items-center gap-3 sm:gap-4">
-              <button
-                type="button"
-                onClick={() => onOpenQuoteModal('Consultation with Property Advisor')}
-                className="px-6 py-3.5 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-lg hover:shadow-emerald-600/20 cursor-pointer flex items-center gap-2"
-              >
-                <span>Schedule Property Consultation</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <a
-                href="#ceo"
-                className="px-6 py-3.5 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors inline-flex items-center gap-2 cursor-pointer"
-              >
-                <Users className="w-4 h-4 text-emerald-400" />
-                <span>View CEO Profile & Leadership</span>
-              </a>
-            </div>
-
           </div>
 
         </div>

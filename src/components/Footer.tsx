@@ -59,11 +59,11 @@ export const Footer: React.FC<FooterProps> = ({ company, onOpenNameEditor }) => 
             <ul className="space-y-2 text-xs">
               <li><a href="#home" className="hover:text-emerald-400 transition-colors">Home Page</a></li>
               <li><a href="#properties" className="hover:text-emerald-400 transition-colors">Property Listings</a></li>
+              <li><a href="#about" className="hover:text-emerald-400 transition-colors">About Nawabshah Estate</a></li>
+              <li><a href="#ceo" className="hover:text-emerald-400 transition-colors">CEO Profile & Leadership</a></li>
               <li><a href="#services" className="hover:text-emerald-400 transition-colors">Real Estate Services</a></li>
               <li><a href="#deals" className="hover:text-emerald-400 transition-colors">Closed Transactions</a></li>
               <li><a href="#calculator" className="hover:text-emerald-400 transition-colors">Sindh Area Converter</a></li>
-              <li><a href="#about" className="hover:text-emerald-400 transition-colors">About Our Agency</a></li>
-              <li><a href="#ceo" className="hover:text-emerald-400 transition-colors">CEO Profile & Leadership</a></li>
               <li><a href="#contact" className="hover:text-emerald-400 transition-colors">Contact Our Office</a></li>
             </ul>
           </div>

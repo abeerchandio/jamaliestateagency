@@ -258,7 +258,7 @@ export default function App() {
 
       {/* Main Content Sections */}
       <main className="flex-1">
-        {/* 1. Hero Section with Real Estate Search Bar */}
+        {/* 1. Hero Section (Home) with Real Estate Search Bar */}
         <Hero
           company={company}
           onOpenQuoteModal={handleOpenQuoteModal}
@@ -273,29 +273,29 @@ export default function App() {
           filterLocation={filterLocation}
         />
 
-        {/* 3. Real Estate Brokerage Services */}
-        <ServicesSection
-          onSelectService={handleSelectService}
-        />
-
-        {/* 4. Recent Deals & Notable Case Studies */}
-        <RecentDealsSection />
-
-        {/* 5. Sindh Land Area Converter & Installment Estimator */}
-        <PropertyCalculator
-          onApplyCalculation={handleApplyCalculation}
-        />
-
-        {/* 6. About Nawabshah Estate Agency & Guarantees */}
+        {/* 3. About Nawabshah Estate Agency (Full Verified Profile & Narrative) */}
         <AboutSection
           company={company}
           onOpenQuoteModal={handleOpenQuoteModal}
         />
 
-        {/* 7. CEO Profile & Executive Leadership */}
+        {/* 4. CEO Profile & Leadership (Mukhtiar Hussain Jamali) */}
         <CeoProfile
           ceoData={ceoData}
           onOpenQuoteModal={handleOpenQuoteModal}
+        />
+
+        {/* 5. Real Estate Brokerage Services */}
+        <ServicesSection
+          onSelectService={handleSelectService}
+        />
+
+        {/* 6. Recent Deals & Notable Case Studies */}
+        <RecentDealsSection />
+
+        {/* 7. Sindh Land Area Converter & Installment Estimator */}
+        <PropertyCalculator
+          onApplyCalculation={handleApplyCalculation}
         />
 
         {/* 8. Client Reviews & Nawabshah Property FAQs */}
@@ -303,7 +303,7 @@ export default function App() {
           company={company}
         />
 
-        {/* 8. Contact Us Section with VIP Road Google Map & WhatsApp */}
+        {/* 9. Contact Us Section with VIP Road Google Map & WhatsApp */}
         <ContactSection
           company={company}
           initialMessage={contactInitialScope}
