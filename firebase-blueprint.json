@@ -69,6 +69,19 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["email", "role"]
+    },
+    "AgencySettings": {
+      "title": "AgencySettings",
+      "description": "Global agency configurations such as CEO leadership profile and contact settings",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 150 },
+        "title": { "type": "string", "maxLength": 150 },
+        "photoUrl": { "type": "string", "maxLength": 2000 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "whatsapp": { "type": "string", "maxLength": 50 },
+        "shortBio": { "type": "string", "maxLength": 2000 }
+      }
     }
   },
   "firestore": {
@@ -87,6 +100,10 @@
     "/admins/{adminUid}": {
       "schema": "Admin",
       "description": "Authorized administrator registry document"
+    },
+    "/settings/{settingId}": {
+      "schema": "AgencySettings",
+      "description": "Global agency settings and CEO profile readable by all visitors and managed by administrators"
     }
   }
 }

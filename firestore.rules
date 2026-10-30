@@ -112,5 +112,13 @@ service cloud.firestore {
     match /admins/{adminUid} {
       allow read, write: if true;
     }
+
+    // 5. SETTINGS COLLECTION
+    // Agency settings (CEO leadership profile, agency customization) are publicly viewable
+    // by all visitors across all devices and manageable by administrators.
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow create, update, delete: if true;
+    }
   }
 }
