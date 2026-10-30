@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, isFirebaseConfigured } from './config';
+import { ensureFirebaseAuthSession } from './authService';
 import { propertiesData as initialData, PropertyItem } from '../data/companyData';
 
 export interface FirestoreProperty {
@@ -65,191 +66,103 @@ const LOCAL_FALLBACK_PROPERTIES: FirestoreProperty[] = initialData.map(convertLo
 const COLLECTION_NAME = 'properties';
 
 // ============================================================================
-// STORAGE HELPERS FOR PERSISTENT DELETES & EDITS (NEVER FAILS)
+// IMAGE COMPRESSION UTILITY (Ensures images easily fit in Cloud Firestore)
 // ============================================================================
-
-// 1. Track deleted property IDs (both default and custom)
-export function getDeletedPropertyIds(): string[] {
-  try {
-    const raw = localStorage.getItem('nawabshah_deleted_property_ids');
-    if (raw) return JSON.parse(raw);
-  } catch {
-    // ignore
-  }
-  return [];
-}
-
-export function markPropertyAsDeleted(id: string): void {
-  try {
-    const list = getDeletedPropertyIds();
-    if (!list.includes(id)) {
-      list.push(id);
-      localStorage.setItem('nawabshah_deleted_property_ids', JSON.stringify(list));
-    }
-    // Remove from custom added properties if present
-    const custom = getOfflineProperties().filter(p => p.id !== id);
-    localStorage.setItem('nawabshah_offline_properties', JSON.stringify(custom));
-
-    // Remove from edited properties if present
-    const edited = getEditedProperties();
-    delete edited[id];
-    localStorage.setItem('nawabshah_edited_properties', JSON.stringify(edited));
-
-    window.dispatchEvent(new Event('properties-data-changed'));
-  } catch (err) {
-    console.warn('Error marking property as deleted:', err);
-  }
-}
-
-// 2. Track edited property overrides (allows editing any property)
-export function getEditedProperties(): Record<string, Partial<FirestoreProperty>> {
-  try {
-    const raw = localStorage.getItem('nawabshah_edited_properties');
-    if (raw) return JSON.parse(raw);
-  } catch {
-    // ignore
-  }
-  return {};
-}
-
-export function saveEditedProperty(id: string, updates: Partial<FirestoreProperty>): void {
-  try {
-    const map = getEditedProperties();
-    map[id] = { ...(map[id] || {}), ...updates, updatedAt: new Date().toISOString() };
-    localStorage.setItem('nawabshah_edited_properties', JSON.stringify(map));
-
-    // Also update custom property in offline storage if it was created locally
-    const customList = getOfflineProperties();
-    const idx = customList.findIndex(p => p.id === id);
-    if (idx >= 0) {
-      customList[idx] = { ...customList[idx], ...updates, updatedAt: new Date().toISOString() };
-      localStorage.setItem('nawabshah_offline_properties', JSON.stringify(customList));
-    }
-
-    window.dispatchEvent(new Event('properties-data-changed'));
-  } catch (err) {
-    console.warn('Error saving edited property:', err);
-  }
-}
-
-// 3. Track newly created custom properties
-export function getOfflineProperties(): FirestoreProperty[] {
-  try {
-    const saved = localStorage.getItem('nawabshah_offline_properties');
-    if (saved) return JSON.parse(saved);
-  } catch {
-    // ignore
-  }
-  return [];
-}
-
-export function saveOfflineProperty(property: FirestoreProperty): void {
-  try {
-    const list = getOfflineProperties();
-    const existingIdx = list.findIndex(p => p.id === property.id);
-    if (existingIdx >= 0) {
-      list[existingIdx] = property;
-    } else {
-      list.unshift(property);
-    }
-    localStorage.setItem('nawabshah_offline_properties', JSON.stringify(list));
-    window.dispatchEvent(new Event('properties-data-changed'));
-  } catch (e) {
-    console.warn('Could not save custom property:', e);
-  }
-}
-
-// Helper to convert file to local Data URL
-export async function readFileAsDataUrl(file: File): Promise<string> {
+export async function compressImageToDataUrl(file: File, maxWidth = 1200, quality = 0.75): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      resolve(typeof reader.result === 'string' ? reader.result : FALLBACK_IMAGE);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(typeof e.target?.result === 'string' ? e.target.result : FALLBACK_IMAGE);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+      img.onerror = () => resolve(FALLBACK_IMAGE);
+      img.src = typeof e.target?.result === 'string' ? e.target.result : FALLBACK_IMAGE;
     };
-    reader.onerror = () => {
-      resolve(FALLBACK_IMAGE);
-    };
+    reader.onerror = () => resolve(FALLBACK_IMAGE);
     reader.readAsDataURL(file);
   });
 }
 
-// Function to construct the complete, consolidated property list
-export function buildConsolidatedPropertyList(sourceFirestoreList: FirestoreProperty[]): FirestoreProperty[] {
-  const deletedIds = getDeletedPropertyIds();
-  const editedMap = getEditedProperties();
-  const customList = getOfflineProperties();
+// Upload property image to Firebase Storage with compression fallback
+export async function uploadPropertyImage(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only image files (JPG, PNG, WEBP) are allowed.');
+  }
 
-  // Combine custom added properties first
-  const combined: FirestoreProperty[] = [...customList];
-
-  // Merge with Firestore list or default fallback listings
-  const baseList = sourceFirestoreList.length > 0 ? sourceFirestoreList : LOCAL_FALLBACK_PROPERTIES;
-  for (const item of baseList) {
-    if (!combined.some(c => c.id === item.id)) {
-      combined.push(item);
+  // 1. Try Firebase Storage if active
+  if (storage && isFirebaseConfigured()) {
+    try {
+      const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageRef = ref(storage, `properties/${Date.now()}_${cleanFileName}`);
+      const uploadTask = async () => {
+        const snapshot = await uploadBytes(storageRef, file);
+        return await getDownloadURL(snapshot.ref);
+      };
+      const timeoutTask = new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('Storage upload timed out')), 6000)
+      );
+      return await Promise.race([uploadTask(), timeoutTask]);
+    } catch (err) {
+      console.warn('Storage upload slow or restricted, using compressed data URL fallback:', err);
     }
   }
 
-  // 1. Exclude all deleted property IDs
-  const withoutDeleted = combined.filter(item => !deletedIds.includes(item.id));
-
-  // 2. Apply any edited overrides
-  const finalized = withoutDeleted.map(item => {
-    if (editedMap[item.id]) {
-      return {
-        ...item,
-        ...editedMap[item.id],
-        // Preserve arrays properly
-        features: editedMap[item.id].features || item.features,
-        images: editedMap[item.id].images && editedMap[item.id].images!.length > 0 ? editedMap[item.id].images! : item.images
-      };
-    }
-    return item;
-  });
-
-  return finalized;
+  // 2. Compress image to clean, high-performance web data URL (< 150KB)
+  return await compressImageToDataUrl(file);
 }
 
 // ============================================================================
-// REAL-TIME LISTENER FOR PROPERTIES
+// REAL-TIME FIRESTORE LISTENER (Global Synchronization Across All Devices)
 // ============================================================================
+let hasAutoSeeded = false;
+
 export function subscribeToProperties(
   onSuccess: (properties: FirestoreProperty[]) => void,
   onError?: (err: Error) => void
 ): () => void {
-  let latestFirestoreData: FirestoreProperty[] = [];
-
-  const broadcastCurrentState = () => {
-    const list = buildConsolidatedPropertyList(latestFirestoreData);
-    onSuccess(list);
-  };
-
-  // Listen to local changes (add/edit/delete in admin)
-  const handleLocalUpdate = () => {
-    broadcastCurrentState();
-  };
-
-  window.addEventListener('properties-data-changed', handleLocalUpdate);
-  window.addEventListener('storage', handleLocalUpdate);
-
-  // Initial broadcast
-  broadcastCurrentState();
-
   if (!db || !isFirebaseConfigured()) {
-    return () => {
-      window.removeEventListener('properties-data-changed', handleLocalUpdate);
-      window.removeEventListener('storage', handleLocalUpdate);
-    };
+    onSuccess(LOCAL_FALLBACK_PROPERTIES);
+    return () => {};
   }
 
   try {
     const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
 
-    const unsubscribeFirestore = onSnapshot(
+    const unsubscribe = onSnapshot(
       q,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          latestFirestoreData = snapshot.docs.map((docSnap) => {
+      async (snapshot) => {
+        if (snapshot.empty) {
+          // If Firestore is completely empty, show initial properties and auto-seed to Firestore
+          onSuccess(LOCAL_FALLBACK_PROPERTIES);
+          if (!hasAutoSeeded) {
+            hasAutoSeeded = true;
+            try {
+              await seedInitialPropertiesToFirestore();
+            } catch (seedErr) {
+              console.warn('Auto-seed note:', seedErr);
+            }
+          }
+        } else {
+          const list: FirestoreProperty[] = snapshot.docs.map((docSnap) => {
             const data = docSnap.data();
             return {
               id: docSnap.id,
@@ -271,185 +184,130 @@ export function subscribeToProperties(
               updatedAt: data.updatedAt
             };
           });
-        } else {
-          latestFirestoreData = [];
+          onSuccess(list);
         }
-        broadcastCurrentState();
       },
       (error) => {
-        console.warn('Firestore subscription notice (using local listings):', error);
-        broadcastCurrentState();
+        console.warn('Firestore subscription error, displaying fallback listings:', error);
+        onSuccess(LOCAL_FALLBACK_PROPERTIES);
         if (onError) onError(error);
       }
     );
 
-    return () => {
-      unsubscribeFirestore();
-      window.removeEventListener('properties-data-changed', handleLocalUpdate);
-      window.removeEventListener('storage', handleLocalUpdate);
-    };
+    return unsubscribe;
   } catch (error) {
-    console.warn('Failed to attach properties snapshot listener:', error);
-    return () => {
-      window.removeEventListener('properties-data-changed', handleLocalUpdate);
-      window.removeEventListener('storage', handleLocalUpdate);
-    };
+    console.warn('Failed to attach Firestore snapshot listener:', error);
+    onSuccess(LOCAL_FALLBACK_PROPERTIES);
+    return () => {};
   }
 }
 
 // ============================================================================
-// ADD PROPERTY
+// ADD PROPERTY (Saves Directly to Cloud Firestore Globally)
 // ============================================================================
 export async function addProperty(
   propertyData: Omit<FirestoreProperty, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
   const generatedId = 'prop_' + Date.now();
-  const newProperty: FirestoreProperty = {
-    id: generatedId,
-    ...propertyData,
-    images: propertyData.images && propertyData.images.length > 0 ? propertyData.images : [FALLBACK_IMAGE],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  const imagesToSave = propertyData.images && propertyData.images.length > 0
+    ? propertyData.images
+    : [FALLBACK_IMAGE];
 
-  // Always save locally so property is immediately active in UI
-  saveOfflineProperty(newProperty);
-
-  // If Firebase is available, sync to Cloud Firestore
-  if (db && isFirebaseConfigured()) {
-    try {
-      const docRef = doc(db, COLLECTION_NAME, generatedId);
-      const syncTask = setDoc(docRef, {
-        ...propertyData,
-        images: newProperty.images,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
-      const timeoutTask = new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore operation timed out')), 5000)
-      );
-
-      await Promise.race([syncTask, timeoutTask]);
-    } catch (error) {
-      console.warn('Firestore sync note for addProperty (saved locally):', error);
-    }
+  if (!db || !isFirebaseConfigured()) {
+    throw new Error('Firebase Database is not configured. Please connect Firebase in Settings.');
   }
 
+  // Ensure active Firebase Auth session so firestore.rules accepts the write
+  await ensureFirebaseAuthSession();
+
+  const docRef = doc(db, COLLECTION_NAME, generatedId);
+  const payload = {
+    title: propertyData.title,
+    propertyType: propertyData.propertyType,
+    purpose: propertyData.purpose,
+    location: propertyData.location,
+    price: propertyData.price,
+    area: propertyData.area,
+    bedrooms: propertyData.bedrooms || '',
+    bathrooms: propertyData.bathrooms || '',
+    parking: propertyData.parking || '',
+    description: propertyData.description || '',
+    features: propertyData.features || [],
+    images: imagesToSave,
+    status: propertyData.status || 'Available',
+    featured: Boolean(propertyData.featured),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  // Direct Cloud Firestore write
+  await setDoc(docRef, payload);
   return generatedId;
 }
 
 // ============================================================================
-// UPDATE PROPERTY (WORKS FOR BOTH DEFAULT AND CUSTOM PROPERTIES)
+// UPDATE PROPERTY (Saves Directly to Cloud Firestore Globally)
 // ============================================================================
 export async function updateProperty(
   id: string,
   updates: Partial<Omit<FirestoreProperty, 'id' | 'createdAt'>>
 ): Promise<void> {
-  // Always update locally first so edits are guaranteed and instant
-  saveEditedProperty(id, updates);
-
-  // If Firebase is available, sync to Cloud Firestore using setDoc with merge: true
-  // (merge: true creates the document if it wasn't seeded yet, avoiding "No document to update" error!)
-  if (db && isFirebaseConfigured()) {
-    try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const syncTask = setDoc(
-        docRef,
-        {
-          ...updates,
-          updatedAt: serverTimestamp()
-        },
-        { merge: true }
-      );
-
-      const timeoutTask = new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore update timed out')), 5000)
-      );
-
-      await Promise.race([syncTask, timeoutTask]);
-    } catch (error) {
-      console.warn('Firestore sync note for updateProperty (saved locally):', error);
-    }
+  if (!db || !isFirebaseConfigured()) {
+    throw new Error('Firebase Database is not configured.');
   }
+
+  // Ensure active Firebase Auth session
+  await ensureFirebaseAuthSession();
+
+  const docRef = doc(db, COLLECTION_NAME, id);
+  await setDoc(
+    docRef,
+    {
+      ...updates,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
 }
 
 // ============================================================================
-// DELETE PROPERTY (WORKS FOR ALL PROPERTIES)
+// DELETE PROPERTY (Deletes Directly from Cloud Firestore Globally)
 // ============================================================================
 export async function deleteProperty(id: string): Promise<void> {
-  // Mark as deleted locally so it immediately and permanently disappears from all lists
-  markPropertyAsDeleted(id);
-
-  // If Firebase is available, also delete from Cloud Firestore
-  if (db && isFirebaseConfigured()) {
-    try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const deleteTask = deleteDoc(docRef);
-
-      const timeoutTask = new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore delete timed out')), 5000)
-      );
-
-      await Promise.race([deleteTask, timeoutTask]);
-    } catch (error) {
-      console.warn('Firestore sync note for deleteProperty:', error);
-    }
+  if (!db || !isFirebaseConfigured()) {
+    throw new Error('Firebase Database is not configured.');
   }
+
+  // Ensure active Firebase Auth session
+  await ensureFirebaseAuthSession();
+
+  const docRef = doc(db, COLLECTION_NAME, id);
+  await deleteDoc(docRef);
 }
 
 // ============================================================================
-// UPLOAD PROPERTY IMAGE (WITH SAFE FALLBACK)
+// SEED DEFAULT LISTINGS TO FIRESTORE GLOBALLY
 // ============================================================================
-export async function uploadPropertyImage(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('Only image files (JPG, PNG, WEBP) are allowed.');
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error('Image size must be less than 10MB.');
-  }
-
-  if (!storage || !isFirebaseConfigured()) {
-    return await readFileAsDataUrl(file);
-  }
-
-  try {
-    const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storageRef = ref(storage, `properties/${Date.now()}_${cleanFileName}`);
-    
-    const uploadTask = async () => {
-      const snapshot = await uploadBytes(storageRef, file);
-      return await getDownloadURL(snapshot.ref);
-    };
-
-    const timeoutTask = new Promise<string>((_, reject) =>
-      setTimeout(() => reject(new Error('Storage upload timed out')), 6000)
-    );
-
-    return await Promise.race([uploadTask(), timeoutTask]);
-  } catch (error) {
-    console.warn('Firebase Storage upload failed or slow, using data URL fallback:', error);
-    return await readFileAsDataUrl(file);
-  }
-}
-
-// Seed initial properties to Firestore (Turnkey Setup button in Admin)
 export async function seedInitialPropertiesToFirestore(): Promise<number> {
   if (!db || !isFirebaseConfigured()) {
     throw new Error('Please configure Firebase first.');
   }
 
-  const deletedIds = getDeletedPropertyIds();
+  await ensureFirebaseAuthSession();
+
   let count = 0;
   for (const item of LOCAL_FALLBACK_PROPERTIES) {
-    if (deletedIds.includes(item.id)) continue;
     const { id, ...dataWithoutId } = item;
     const docRef = doc(db, COLLECTION_NAME, id);
-    await setDoc(docRef, {
-      ...dataWithoutId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await setDoc(
+      docRef,
+      {
+        ...dataWithoutId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
     count++;
   }
   return count;

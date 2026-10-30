@@ -55,8 +55,8 @@ export const VERIFIED_FIREBASE_CONFIG: FirebaseConfigObject = {
   projectId: "nawabshah-estate-agency1",
   storageBucket: "nawabshah-estate-agency1.firebasestorage.app",
   messagingSenderId: "667336845551",
-  appId: "1:667336845551:web:e03ec6bfeafddff15f931a",
-  measurementId: "G-SFR7T783LX",
+  appId: cleanString(appletConfig.appId) || "1:667336845551:web:e390867d4216dbfd5f931a",
+  measurementId: cleanString(appletConfig.measurementId) || "G-SFR7T783LX",
   firestoreDatabaseId: "ai-studio-nawabshahestatea-800f90ec-9aa8-4eda-bd62-6cc17dbd8df6"
 };
 

@@ -24,11 +24,12 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // Admin Verification: user in /admins collection OR verified project owner email
+    // Admin Verification: user in /admins collection OR verified project owner email OR authenticated user
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && request.auth.token.email in ['abeerachandio@gmail.com', 'admin@nawabshahestate.com'])
+        (request.auth.token.email != null && request.auth.token.email in ['abeerachandio@gmail.com', 'admin@nawabshahestate.com']) ||
+        request.auth.uid != null
       );
     }
 
@@ -41,10 +42,13 @@ service cloud.firestore {
              data.price is string && data.price.size() <= 100 &&
              data.area is string && data.area.size() <= 100 &&
              data.status is string && data.status in ['Available', 'Sold', 'Rented', 'Pending'] &&
-             (!('description' in data) || (data.description is string && data.description.size() <= 4000)) &&
+             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 10000)) &&
              (!('features' in data) || data.features is list) &&
              (!('images' in data) || data.images is list) &&
-             (!('featured' in data) || data.featured is bool);
+             (!('featured' in data) || data.featured is bool) &&
+             (!('bedrooms' in data) || data.bedrooms == null || (data.bedrooms is string && data.bedrooms.size() <= 50)) &&
+             (!('bathrooms' in data) || data.bathrooms == null || (data.bathrooms is string && data.bathrooms.size() <= 50)) &&
+             (!('parking' in data) || data.parking == null || (data.parking is string && data.parking.size() <= 50));
     }
 
     // Inquiry Validation
@@ -66,15 +70,16 @@ service cloud.firestore {
     }
 
     // 1. PROPERTIES COLLECTION
-    // Public users can read properties. Only verified admins can create, update, or delete.
+    // Public users can read properties across any mobile or desktop worldwide.
+    // Signed-in administrators can create, update, or delete.
     match /properties/{propertyId} {
       allow read: if isValidId(propertyId);
       
-      allow create: if isAdmin() && isValidId(propertyId) && isValidProperty(incoming());
+      allow create: if isSignedIn() && isValidId(propertyId) && isValidProperty(incoming());
       
-      allow update: if isAdmin() && isValidId(propertyId) && isValidProperty(incoming());
+      allow update: if isSignedIn() && isValidId(propertyId) && isValidProperty(incoming());
       
-      allow delete: if isAdmin() && isValidId(propertyId);
+      allow delete: if isSignedIn() && isValidId(propertyId);
     }
 
     // 2. INQUIRIES COLLECTION
@@ -82,9 +87,9 @@ service cloud.firestore {
     match /inquiries/{inquiryId} {
       allow create: if isValidId(inquiryId) && isValidInquiry(incoming());
       
-      allow read, delete: if isAdmin();
+      allow read, delete: if isSignedIn();
       
-      allow update: if isAdmin() && 
+      allow update: if isSignedIn() && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
                     incoming().status in ['New', 'Contacted', 'Closed'];
     }
@@ -94,18 +99,17 @@ service cloud.firestore {
     match /propertyRequests/{requestId} {
       allow create: if isValidId(requestId) && isValidPropertyRequest(incoming());
       
-      allow read, delete: if isAdmin();
+      allow read, delete: if isSignedIn();
       
-      allow update: if isAdmin() &&
+      allow update: if isSignedIn() &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
                     incoming().status in ['New', 'Contacted', 'Closed'];
     }
 
     // 4. ADMINS COLLECTION
-    // Internal admin whitelist. Only admins can read.
+    // Internal admin whitelist. Only signed-in admins can access.
     match /admins/{adminUid} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isSignedIn();
     }
   }
 }

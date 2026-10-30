@@ -265,7 +265,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         await updateProperty(editingProperty.id, updatedFields);
         setProperties(prev => prev.map(p => p.id === editingProperty.id ? { ...p, ...updatedFields } : p));
-        showNotice('success', 'Property updated successfully!');
+        showNotice('success', 'Property updated globally in Cloud Firestore!');
       } else {
         // Add
         const newPropertyData = {
@@ -287,14 +287,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         const newId = await addProperty(newPropertyData);
         setProperties(prev => [{ id: newId, ...newPropertyData }, ...prev]);
-        showNotice('success', 'New property saved to catalog!');
+        showNotice('success', 'New property saved globally to Cloud Firestore!');
       }
 
       handleResetForm();
       setActiveTab('properties');
     } catch (err: any) {
-      console.warn('Property save error caught gracefully:', err);
-      showNotice('error', err.message || 'Operation failed. Saved locally.');
+      console.error('Property save error:', err);
+      showNotice('error', err.message || 'Operation failed.');
     } finally {
       clearTimeout(watchdogTimer);
       setIsSubmitting(false);
@@ -308,15 +308,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const deletedTitle = propertyToDelete.title;
     try {
       await deleteProperty(deletedId);
-      // Optimistically remove from state immediately
       setProperties(prev => prev.filter(p => p.id !== deletedId));
-      showNotice('success', `Deleted "${deletedTitle}" successfully!`);
+      showNotice('success', `Deleted "${deletedTitle}" from Cloud Firestore!`);
       setPropertyToDelete(null);
     } catch (err: any) {
-      console.warn('Delete error:', err);
-      // Still remove locally
-      setProperties(prev => prev.filter(p => p.id !== deletedId));
-      showNotice('success', `Deleted "${deletedTitle}"`);
+      console.error('Delete error:', err);
+      showNotice('error', err.message || 'Failed to delete property from database.');
       setPropertyToDelete(null);
     }
   };
