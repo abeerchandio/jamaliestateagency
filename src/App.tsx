@@ -12,6 +12,7 @@ import { ServicesSection } from './components/ServicesSection';
 import { RecentDealsSection } from './components/RecentDealsSection';
 import { PropertyCalculator } from './components/PropertyCalculator';
 import { AboutSection } from './components/AboutSection';
+import { CeoProfile } from './components/CeoProfile';
 import { ReviewsAndFaqSection } from './components/ReviewsAndFaqSection';
 import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
@@ -22,8 +23,11 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminLoginModal } from './components/admin/AdminLoginModal';
 import { FirebaseConfigModal } from './components/admin/FirebaseConfigModal';
 import { subscribeToAuthState, AdminAuthState } from './firebase/authService';
+import { CeoProfileData, defaultCeoProfile } from './data/ceoData';
+import { subscribeToCeoProfile, getCachedCeoProfile } from './firebase/settingsService';
 
 export default function App() {
+  const [ceoData, setCeoData] = useState<CeoProfileData>(getCachedCeoProfile);
   const [company, setCompany] = useState<CompanyInfo>(() => {
     try {
       localStorage.removeItem('voltix_company_info');
@@ -31,12 +35,17 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.name && parsed.name.includes('Nawabshah')) {
-          // If stored phone was the placeholder, overwrite with new phone
-          if (!parsed.phone || parsed.phone.includes('300555')) {
+          // If stored phone was a placeholder or old phone number, overwrite with new phone +923128983678
+          if (!parsed.phone || parsed.phone.includes('300555') || parsed.phone.includes('3215270') || parsed.phone.includes('0300')) {
             parsed.phone = defaultCompanyInfo.phone;
             parsed.displayPhone = defaultCompanyInfo.displayPhone;
             parsed.whatsappNumber = defaultCompanyInfo.whatsappNumber;
             parsed.displayWhatsapp = defaultCompanyInfo.displayWhatsapp;
+            try {
+              localStorage.setItem('nawabshah_estate_agency_info', JSON.stringify({ ...defaultCompanyInfo, ...parsed }));
+            } catch {
+              // ignore
+            }
           }
           return { ...defaultCompanyInfo, ...parsed };
         }
@@ -80,7 +89,15 @@ export default function App() {
     const unsubscribe = subscribeToAuthState((state) => {
       setAuthState(state);
     });
-    return () => unsubscribe();
+
+    const unsubCeo = subscribeToCeoProfile((data) => {
+      setCeoData(data);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubCeo();
+    };
   }, []);
 
   // Listen to browser path / hash changes for /admin
@@ -275,7 +292,13 @@ export default function App() {
           onOpenQuoteModal={handleOpenQuoteModal}
         />
 
-        {/* 7. Client Reviews & Nawabshah Property FAQs */}
+        {/* 7. CEO Profile & Executive Leadership */}
+        <CeoProfile
+          ceoData={ceoData}
+          onOpenQuoteModal={handleOpenQuoteModal}
+        />
+
+        {/* 8. Client Reviews & Nawabshah Property FAQs */}
         <ReviewsAndFaqSection
           company={company}
         />

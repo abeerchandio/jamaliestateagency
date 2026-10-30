@@ -12,14 +12,27 @@ export function cleanString(val: unknown): string {
   if (val == null) return '';
   let str = String(val).trim();
 
-  // Iteratively remove outer single/double quotes and escaped quotes
+  // Decode URI components if %22 (%27) encoded quotes exist
+  if (str.includes('%22') || str.includes('%27')) {
+    try {
+      str = decodeURIComponent(str);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Replace HTML entity quotes
+  str = str.replace(/&quot;/g, '').replace(/&#39;/g, '');
+
+  // Iteratively remove outer single/double quotes, escaped quotes, backticks
   let changed = true;
   while (changed && str.length > 0) {
     changed = false;
-    // Check for matching quotes
+    // Check for matching outer quotes
     if (
       (str.startsWith('"') && str.endsWith('"')) ||
-      (str.startsWith("'") && str.endsWith("'"))
+      (str.startsWith("'") && str.endsWith("'")) ||
+      (str.startsWith('`') && str.endsWith('`'))
     ) {
       str = str.slice(1, -1).trim();
       changed = true;
@@ -32,8 +45,8 @@ export function cleanString(val: unknown): string {
     }
   }
 
-  // Strip any remaining leading or trailing lone quotes
-  str = str.replace(/^["']+|["']+$/g, '').trim();
+  // Strip any remaining leading or trailing lone quotes or backslashes
+  str = str.replace(/^["'`\\]+|["'`\\]+$/g, '').trim();
   return str;
 }
 
@@ -55,7 +68,7 @@ export const VERIFIED_FIREBASE_CONFIG: FirebaseConfigObject = {
   projectId: "nawabshah-estate-agency1",
   storageBucket: "nawabshah-estate-agency1.firebasestorage.app",
   messagingSenderId: "667336845551",
-  appId: cleanString(appletConfig.appId) || "1:667336845551:web:e390867d4216dbfd5f931a",
+  appId: "1:667336845551:web:e03ec6bfeafddff15f931a",
   measurementId: cleanString(appletConfig.measurementId) || "G-SFR7T783LX",
   firestoreDatabaseId: "ai-studio-nawabshahestatea-800f90ec-9aa8-4eda-bd62-6cc17dbd8df6"
 };
@@ -68,7 +81,12 @@ export function sanitizeFirebaseConfig(raw: Partial<FirebaseConfigObject>): Fire
       ? cleanedProjectId
       : VERIFIED_FIREBASE_CONFIG.projectId;
 
-  const cleanedApiKey = cleanString(raw.apiKey);
+  let cleanedApiKey = cleanString(raw.apiKey);
+  // Ensure the API key strictly starts with AIzaSy and contains no quotes
+  if (!cleanedApiKey || !cleanedApiKey.startsWith('AIzaSy') || cleanedApiKey.includes('"') || cleanedApiKey.includes("'") || cleanedApiKey.length < 30) {
+    cleanedApiKey = VERIFIED_FIREBASE_CONFIG.apiKey;
+  }
+
   const cleanedAuthDomain = cleanString(raw.authDomain);
   const cleanedStorageBucket = cleanString(raw.storageBucket);
   const cleanedMessagingSenderId = cleanString(raw.messagingSenderId);
@@ -77,7 +95,7 @@ export function sanitizeFirebaseConfig(raw: Partial<FirebaseConfigObject>): Fire
   const cleanedDatabaseId = cleanString(raw.firestoreDatabaseId);
 
   return {
-    apiKey: cleanedApiKey || VERIFIED_FIREBASE_CONFIG.apiKey,
+    apiKey: cleanedApiKey,
     authDomain: cleanedAuthDomain || VERIFIED_FIREBASE_CONFIG.authDomain,
     projectId: finalProjectId,
     storageBucket: cleanedStorageBucket || VERIFIED_FIREBASE_CONFIG.storageBucket,
@@ -89,7 +107,7 @@ export function sanitizeFirebaseConfig(raw: Partial<FirebaseConfigObject>): Fire
 }
 
 // ============================================================================
-// 15. DEFAULT FIREBASE CONFIGURATION
+// DEFAULT FIREBASE CONFIGURATION
 // ============================================================================
 export const defaultFirebaseConfig: FirebaseConfigObject = sanitizeFirebaseConfig({
   apiKey: cleanString(import.meta.env.VITE_FIREBASE_API_KEY) || VERIFIED_FIREBASE_CONFIG.apiKey,
@@ -110,27 +128,22 @@ export function getActiveFirebaseConfig(): FirebaseConfigObject {
       const parsed = JSON.parse(saved);
       const sanitized = sanitizeFirebaseConfig(parsed);
 
-      // Detect and auto-correct old mismatched API keys (e.g. from prior provisioned apps)
+      // Detect and auto-correct old mismatched or missing API keys
       if (
-        sanitized.projectId === 'nawabshah-estate-agency1' &&
-        sanitized.apiKey !== VERIFIED_FIREBASE_CONFIG.apiKey
+        !sanitized.apiKey ||
+        sanitized.apiKey !== VERIFIED_FIREBASE_CONFIG.apiKey ||
+        sanitized.projectId !== VERIFIED_FIREBASE_CONFIG.projectId
       ) {
         localStorage.setItem('nawabshah_firebase_config', JSON.stringify(VERIFIED_FIREBASE_CONFIG));
         return VERIFIED_FIREBASE_CONFIG;
       }
 
-      if (JSON.stringify(parsed) !== JSON.stringify(sanitized)) {
-        localStorage.setItem('nawabshah_firebase_config', JSON.stringify(sanitized));
-      }
-
-      if (sanitized.apiKey && !sanitized.apiKey.includes('YOUR_')) {
-        return sanitized;
-      }
+      return sanitized;
     }
   } catch {
     // fallback
   }
-  return defaultFirebaseConfig;
+  return VERIFIED_FIREBASE_CONFIG;
 }
 
 export function saveFirebaseConfig(config: FirebaseConfigObject): void {

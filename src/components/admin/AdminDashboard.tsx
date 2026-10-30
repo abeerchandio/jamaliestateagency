@@ -23,7 +23,8 @@ import {
   Check,
   X,
   RefreshCw,
-  Database
+  Database,
+  UserCheck
 } from 'lucide-react';
 import {
   FirestoreProperty,
@@ -48,6 +49,7 @@ import {
 } from '../../firebase/requestsService';
 import { adminLogout } from '../../firebase/authService';
 import { isFirebaseConfigured, getActiveFirebaseConfig } from '../../firebase/config';
+import { CeoProfileEditor } from './CeoProfileEditor';
 
 interface AdminDashboardProps {
   onBackToPublicSite: () => void;
@@ -61,6 +63,7 @@ type TabType =
   | 'featured'
   | 'inquiries'
   | 'requests'
+  | 'ceo_profile'
   | 'settings';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -487,6 +490,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {newRequestsCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('ceo_profile')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'ceo_profile'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-850'
+              }`}
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>CEO Profile & Leadership</span>
             </button>
 
             <button
@@ -1363,7 +1378,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {/* ==================================================================== */}
-        {/* 6. SETTINGS & FIREBASE STATUS TAB */}
+        {/* 6. CEO PROFILE & LEADERSHIP TAB */}
+        {/* ==================================================================== */}
+        {activeTab === 'ceo_profile' && (
+          <div className="pt-6">
+            <CeoProfileEditor onSuccessNotice={(msg) => showNotice('success', msg)} />
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* 7. SETTINGS & FIREBASE STATUS TAB */}
         {/* ==================================================================== */}
         {activeTab === 'settings' && (
           <div className="max-w-2xl pt-6 space-y-6">
