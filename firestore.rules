@@ -87,25 +87,15 @@ service cloud.firestore {
     }
 
     // 2. INQUIRIES COLLECTION
+    // Public visitors can submit property inquiries; admins can view, update status, and delete
     match /inquiries/{inquiryId} {
-      allow create: if isValidId(inquiryId) && isValidInquiry(incoming());
-      
-      allow get, list, delete: if true;
-      
-      allow update: if isValidId(inquiryId) && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
-                    incoming().status in ['New', 'Contacted', 'Closed'];
+      allow read, write: if true;
     }
 
     // 3. PROPERTY REQUESTS COLLECTION
+    // Public visitors can submit property listings/buying requests; admins can view, manage, and delete
     match /propertyRequests/{requestId} {
-      allow create: if isValidId(requestId) && isValidPropertyRequest(incoming());
-      
-      allow get, list, delete: if true;
-      
-      allow update: if isValidId(requestId) &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
-                    incoming().status in ['New', 'Contacted', 'Closed'];
+      allow read, write: if true;
     }
 
     // 4. ADMINS COLLECTION

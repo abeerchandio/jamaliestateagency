@@ -24,7 +24,9 @@ import {
   X,
   RefreshCw,
   Database,
-  UserCheck
+  UserCheck,
+  MessageCircle,
+  Phone
 } from 'lucide-react';
 import {
   FirestoreProperty,
@@ -345,6 +347,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Delete Inquiry
+  const handleDeleteInquiry = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the inquiry from "${name}"?`)) return;
+    try {
+      await deleteInquiry(id);
+      setInquiries(prev => prev.filter(i => i.id !== id));
+      showNotice('success', `Inquiry from "${name}" deleted from database.`);
+    } catch (err: any) {
+      console.error('Delete inquiry error:', err);
+      showNotice('error', err.message || 'Failed to delete inquiry from database.');
+    }
+  };
+
+  // Delete Property Request (Submit Property)
+  const handleDeleteRequest = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the property submission from "${name}"?`)) return;
+    try {
+      await deletePropertyRequest(id);
+      setPropertyRequests(prev => prev.filter(r => r.id !== id));
+      showNotice('success', `Property submission from "${name}" deleted from database.`);
+    } catch (err: any) {
+      console.error('Delete request error:', err);
+      showNotice('error', err.message || 'Failed to delete property request from database.');
+    }
+  };
+
+  // Update Inquiry Status
+  const handleUpdateInquiryStatus = async (id: string, status: 'New' | 'Contacted' | 'Closed') => {
+    try {
+      await updateInquiryStatus(id, status);
+      setInquiries(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+      showNotice('success', `Inquiry marked as ${status}.`);
+    } catch (err: any) {
+      console.warn('Update inquiry status error:', err);
+    }
+  };
+
+  // Update Property Request Status
+  const handleUpdateRequestStatus = async (id: string, status: 'New' | 'Contacted' | 'Closed') => {
+    try {
+      await updatePropertyRequestStatus(id, status);
+      setPropertyRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+      showNotice('success', `Property request marked as ${status}.`);
+    } catch (err: any) {
+      console.warn('Update request status error:', err);
+    }
+  };
+
   // Stats
   const totalProperties = properties.length;
   const forSaleCount = properties.filter(p => p.purpose === 'Sale').length;
@@ -632,116 +682,294 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="text-[11px] text-slate-500 mt-0.5">Shops & Plazas</div>
               </div>
 
+              {/* Submit Property Requests Stat */}
               <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
-                <div className="text-xs text-slate-400">Featured Listings</div>
-                <div className="text-2xl font-extrabold font-mono text-amber-400 mt-1">
-                  {featuredCount}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-slate-400">Property Submissions</div>
+                  {newRequestsCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold animate-pulse">
+                      {newRequestsCount} New
+                    </span>
+                  )}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Homepage Highlight</div>
+                <div className="text-2xl font-extrabold font-mono text-emerald-400 mt-1">
+                  {propertyRequests.length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">From "Submit Property"</div>
               </div>
 
+              {/* Inquiries Stat */}
               <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl col-span-2 lg:col-span-1">
-                <div className="text-xs text-slate-400">New Inquiries</div>
-                <div className="text-2xl font-extrabold font-mono text-rose-400 mt-1">
-                  {newInquiriesCount}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-slate-400">Client Inquiries</div>
+                  {newInquiriesCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-bold animate-pulse">
+                      {newInquiriesCount} New
+                    </span>
+                  )}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Awaiting Contact</div>
+                <div className="text-2xl font-extrabold font-mono text-rose-400 mt-1">
+                  {inquiries.length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Website Messages</div>
               </div>
             </div>
 
-            {/* Quick Actions & Recent Listings */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Main Interactive Overview: Property Requests & Inquiries Side-by-Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
-              {/* Recent Properties */}
-              <div className="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Building className="w-4 h-4 text-emerald-500" />
-                    Latest Property Listings
-                  </h3>
+              {/* Box 1: Recent Property Submissions ("Submit Property" Modal Requests) */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-white">
+                      Recent Property Submissions ({propertyRequests.length})
+                    </h3>
+                  </div>
                   <button
-                    onClick={() => setActiveTab('properties')}
-                    className="text-xs text-emerald-400 hover:underline font-semibold"
+                    onClick={() => setActiveTab('requests')}
+                    className="text-xs text-emerald-400 hover:underline font-semibold cursor-pointer"
                   >
-                    View All →
+                    View All Requests →
                   </button>
                 </div>
 
                 <div className="space-y-3">
-                  {properties.slice(0, 4).map(prop => (
-                    <div
-                      key={prop.id}
-                      className="p-3 bg-slate-900 border border-slate-800/80 rounded-lg flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={prop.images[0] || '/src/assets/images/hero_nawabshah_villas_1790974799226.jpg'}
-                          alt={prop.title}
-                          className="w-12 h-10 object-cover rounded shrink-0 bg-slate-800"
-                        />
-                        <div className="truncate">
-                          <div className="font-bold text-white truncate">{prop.title}</div>
-                          <div className="text-slate-400 text-[11px] truncate">{prop.location}</div>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <div className="font-mono font-bold text-emerald-400">{prop.price}</div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                          {prop.status}
-                        </span>
-                      </div>
+                  {propertyRequests.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-500 bg-slate-900/40 rounded-lg border border-slate-800/60">
+                      No property submission requests yet. When visitors click "Submit Property", their listings appear here in real-time.
                     </div>
-                  ))}
+                  ) : (
+                    propertyRequests.slice(0, 4).map(req => {
+                      const cleanPhone = req.phone.replace(/[^0-9]/g, '');
+                      return (
+                        <div
+                          key={req.id}
+                          className="p-3.5 bg-slate-900 border border-slate-800 rounded-lg space-y-2.5 text-xs hover:border-slate-700 transition-colors"
+                        >
+                          {/* Client Header */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-sm text-white flex items-center gap-2">
+                                <span>{req.name}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                                  req.status === 'New'
+                                    ? 'bg-rose-500/20 text-rose-300'
+                                    : req.status === 'Contacted'
+                                    ? 'bg-blue-500/20 text-blue-300'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}>
+                                  {req.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-400 text-[11px] mt-0.5">
+                                <span className="font-mono text-emerald-400 font-semibold">{req.phone}</span>
+                                {req.email && <span>· {req.email}</span>}
+                              </div>
+                            </div>
+
+                            <span className="px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold shrink-0">
+                              {req.propertyType}
+                            </span>
+                          </div>
+
+                          {/* Submission Details */}
+                          {(req.requirements || req.budget || req.preferredLocation) && (
+                            <p className="text-slate-300 text-[11px] leading-relaxed bg-slate-950/60 p-2 rounded border border-slate-800/80">
+                              {req.requirements || `Location: ${req.preferredLocation || 'Any'} | Budget: ${req.budget || 'Open'}`}
+                            </p>
+                          )}
+
+                          {/* Action Toolbar */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                            {/* Status Selector */}
+                            <select
+                              value={req.status}
+                              onChange={(e) => handleUpdateRequestStatus(req.id, e.target.value as any)}
+                              className="bg-slate-950 border border-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded focus:outline-none cursor-pointer"
+                            >
+                              <option value="New">Mark New</option>
+                              <option value="Contacted">Mark Contacted</option>
+                              <option value="Closed">Mark Closed</option>
+                            </select>
+
+                            {/* WhatsApp & Delete Buttons */}
+                            <div className="flex items-center gap-2">
+                              {cleanPhone && (
+                                <a
+                                  href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                                    `Assalam-o-Alaikum ${req.name}, I am contacting you from Nawabshah Estate Agency regarding your property submission.`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <MessageCircle className="w-3 h-3" />
+                                  <span>WhatsApp</span>
+                                </a>
+                              )}
+
+                              <button
+                                onClick={() => handleDeleteRequest(req.id, req.name)}
+                                className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                                title="Delete Property Request"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
-              {/* Recent Inquiries */}
-              <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-500" />
-                    Recent Client Inquiries
-                  </h3>
+              {/* Box 2: Recent Customer Inquiries (Contact Form Submissions) */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-white">
+                      Recent Customer Inquiries ({inquiries.length})
+                    </h3>
+                  </div>
                   <button
                     onClick={() => setActiveTab('inquiries')}
-                    className="text-xs text-emerald-400 hover:underline font-semibold"
+                    className="text-xs text-emerald-400 hover:underline font-semibold cursor-pointer"
                   >
-                    View All →
+                    View All Inquiries →
                   </button>
                 </div>
 
                 <div className="space-y-3">
                   {inquiries.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-slate-500">
-                      No customer inquiries submitted yet.
+                    <div className="py-8 text-center text-xs text-slate-500 bg-slate-900/40 rounded-lg border border-slate-800/60">
+                      No customer inquiries submitted yet. When visitors send a message or inquire on a listing, they will appear here in real-time.
                     </div>
                   ) : (
-                    inquiries.slice(0, 4).map(inq => (
-                      <div
-                        key={inq.id}
-                        className="p-3 bg-slate-900 border border-slate-800/80 rounded-lg space-y-1 text-xs"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-white">{inq.name}</span>
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                              inq.status === 'New'
-                                ? 'bg-rose-500/20 text-rose-300'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
-                          >
-                            {inq.status}
-                          </span>
+                    inquiries.slice(0, 4).map(inq => {
+                      const cleanPhone = inq.phone.replace(/[^0-9]/g, '');
+                      return (
+                        <div
+                          key={inq.id}
+                          className="p-3.5 bg-slate-900 border border-slate-800 rounded-lg space-y-2.5 text-xs hover:border-slate-700 transition-colors"
+                        >
+                          {/* Client Header */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-sm text-white flex items-center gap-2">
+                                <span>{inq.name}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                                  inq.status === 'New'
+                                    ? 'bg-rose-500/20 text-rose-300'
+                                    : inq.status === 'Contacted'
+                                    ? 'bg-blue-500/20 text-blue-300'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}>
+                                  {inq.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-400 text-[11px] mt-0.5">
+                                <span className="font-mono text-emerald-400 font-semibold">{inq.phone}</span>
+                                {inq.email && <span>· {inq.email}</span>}
+                              </div>
+                            </div>
+
+                            {inq.propertyTitle && (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] truncate max-w-[150px]">
+                                {inq.propertyTitle}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Message Content */}
+                          <p className="text-slate-300 text-[11px] leading-relaxed bg-slate-950/60 p-2 rounded border border-slate-800/80">
+                            "{inq.message}"
+                          </p>
+
+                          {/* Action Toolbar */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                            {/* Status Selector */}
+                            <select
+                              value={inq.status}
+                              onChange={(e) => handleUpdateInquiryStatus(inq.id, e.target.value as any)}
+                              className="bg-slate-950 border border-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded focus:outline-none cursor-pointer"
+                            >
+                              <option value="New">Mark New</option>
+                              <option value="Contacted">Mark Contacted</option>
+                              <option value="Closed">Mark Closed</option>
+                            </select>
+
+                            {/* WhatsApp & Delete Buttons */}
+                            <div className="flex items-center gap-2">
+                              {cleanPhone && (
+                                <a
+                                  href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                                    `Assalam-o-Alaikum ${inq.name}, I am reaching out from Nawabshah Estate Agency regarding your inquiry.`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <MessageCircle className="w-3 h-3" />
+                                  <span>WhatsApp</span>
+                                </a>
+                              )}
+
+                              <button
+                                onClick={() => handleDeleteInquiry(inq.id, inq.name)}
+                                className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                                title="Delete Inquiry"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-slate-400 font-mono text-[11px]">{inq.phone}</div>
-                        <p className="text-slate-300 text-[11px] truncate">{inq.message}</p>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
 
+            </div>
+
+            {/* Quick Overview of Recent Property Listings */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Building className="w-4 h-4 text-emerald-400" />
+                  Latest Property Catalog Listings ({properties.length})
+                </h3>
+                <button
+                  onClick={() => setActiveTab('properties')}
+                  className="text-xs text-emerald-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Manage All Properties →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {properties.slice(0, 4).map(prop => (
+                  <div
+                    key={prop.id}
+                    className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex items-center gap-3 text-xs"
+                  >
+                    <img
+                      src={prop.images[0] || '/src/assets/images/hero_nawabshah_villas_1790974799226.jpg'}
+                      alt={prop.title}
+                      className="w-12 h-12 object-cover rounded shrink-0 bg-slate-800"
+                    />
+                    <div className="truncate min-w-0">
+                      <div className="font-bold text-white truncate">{prop.title}</div>
+                      <div className="text-slate-400 text-[11px] truncate">{prop.location}</div>
+                      <div className="font-mono font-bold text-emerald-400 text-[11px] mt-0.5">{prop.price}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
           </div>
@@ -1267,8 +1495,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex items-center gap-2 shrink-0">
                       <select
                         value={inq.status}
-                        onChange={(e) => updateInquiryStatus(inq.id, e.target.value as any)}
-                        className="bg-slate-900 border border-slate-800 text-xs text-slate-300 px-2.5 py-1.5 rounded-lg focus:outline-none"
+                        onChange={(e) => handleUpdateInquiryStatus(inq.id, e.target.value as any)}
+                        className="bg-slate-900 border border-slate-800 text-xs text-slate-300 px-2.5 py-1.5 rounded-lg focus:outline-none cursor-pointer"
                       >
                         <option value="New">Mark New</option>
                         <option value="Contacted">Mark Contacted</option>
@@ -1279,14 +1507,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         href={`https://wa.me/${inq.phone.replace(/[^0-9]/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                       >
                         WhatsApp
                       </a>
 
                       <button
-                        onClick={() => deleteInquiry(inq.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-slate-900"
+                        onClick={() => handleDeleteInquiry(inq.id, inq.name)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
                         title="Delete Inquiry"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1346,8 +1574,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex items-center gap-2 shrink-0">
                       <select
                         value={req.status}
-                        onChange={(e) => updatePropertyRequestStatus(req.id, e.target.value as any)}
-                        className="bg-slate-900 border border-slate-800 text-xs text-slate-300 px-2.5 py-1.5 rounded-lg focus:outline-none"
+                        onChange={(e) => handleUpdateRequestStatus(req.id, e.target.value as any)}
+                        className="bg-slate-900 border border-slate-800 text-xs text-slate-300 px-2.5 py-1.5 rounded-lg focus:outline-none cursor-pointer"
                       >
                         <option value="New">New</option>
                         <option value="Contacted">Contacted</option>
@@ -1358,14 +1586,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         href={`https://wa.me/${req.phone.replace(/[^0-9]/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
                       >
                         WhatsApp
                       </a>
 
                       <button
-                        onClick={() => deletePropertyRequest(req.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-slate-900"
+                        onClick={() => handleDeleteRequest(req.id, req.name)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                        title="Delete Property Request"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
